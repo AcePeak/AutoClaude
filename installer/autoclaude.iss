@@ -74,6 +74,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tray\autoclaude-tray.ps1"" -Hidden"; Description: "Start AutoClaude"; Flags: nowait postinstall skipifsilent
+Filename: "https://paypal.me/AceLiatus"; Description: "Support the project - Donate via PayPal"; Flags: postinstall skipifsilent shellexec unchecked
 
 [UninstallRun]
 ; Stop tray application before uninstall
@@ -101,7 +102,8 @@ begin
       '1. Right-click in any folder' + #13#10 +
       '2. Select "Initialize AutoClaude Project"' + #13#10 +
       '3. Select "Open Claude" to start' + #13#10 + #13#10 +
-      'System tray icon is now active. Right-click to manage projects.',
+      'System tray icon is now active. Right-click to manage projects.' + #13#10 + #13#10 +
+      'If you find AutoClaude useful, please consider supporting the project!',
       mbInformation, MB_OK);
   end;
 end;
