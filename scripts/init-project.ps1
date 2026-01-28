@@ -72,7 +72,7 @@ function Initialize-AutoClaudeProject {
     $templateMappings = @{
         "SUPERVISOR_GUIDE.md" = "collaboration\SUPERVISOR_GUIDE.md"
         "EXECUTOR_GUIDE.md" = "collaboration\EXECUTOR_GUIDE.md"
-        "CLAUDE.md" = ".claude\CLAUDE.md"
+        "CLAUDE.md" = "CLAUDE.md"
         "config.json" = "collaboration\.autoclaude\config.json"
     }
 

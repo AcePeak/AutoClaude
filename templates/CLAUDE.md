@@ -6,7 +6,7 @@ This project has AutoClaude continuous task system enabled.
 
 When user mentions the following keywords or similar expressions in conversation, identify as "continuous task" request:
 
-**Keywords:**
+**Keywords (English):**
 - "continuous task"
 - "background task"
 - "auto execute"
@@ -15,6 +15,15 @@ When user mentions the following keywords or similar expressions in conversation
 - "nonstop task"
 - "persistent task"
 - "async task"
+
+**Keywords (Chinese):**
+- "不间断任务"
+- "持续任务"
+- "后台任务"
+- "自动执行"
+- "让supervisor处理"
+- "加入队列"
+- "异步任务"
 
 **Similar expressions:**
 - "this task can be done slowly"
