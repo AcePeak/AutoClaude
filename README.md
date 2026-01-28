@@ -1,5 +1,8 @@
 # AutoClaude
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/AcePeak?style=flat-square&logo=github&label=Sponsors)](https://github.com/sponsors/AcePeak)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+
 File-system-based multi-AI agent collaboration tool supporting 24/7 continuous development.
 
 ## Features
@@ -91,6 +94,14 @@ Test without building installer:
 Global config: `%APPDATA%\AutoClaude\projects.json`
 
 Project config: `collaboration/.autoclaude/config.json`
+
+## Support
+
+If you find AutoClaude useful, consider supporting the project:
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/AcePeak)
+
+Your support helps maintain and improve this project!
 
 ## License
 
