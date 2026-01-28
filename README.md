@@ -100,6 +100,7 @@ Project config: `collaboration/.autoclaude/config.json`
 If you find AutoClaude useful, consider supporting the project:
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/AcePeak)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-blue?style=for-the-badge&logo=paypal)](https://paypal.me/AceLiatus)
 
 Your support helps maintain and improve this project!
 
