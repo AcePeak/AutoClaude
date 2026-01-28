@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "check_interval_seconds": 60,
+  "max_executors": 5,
+  "task_timeout_minutes": 30,
+  "notify_on_complete": true,
+  "notify_on_error": true,
+  "claude_path": "claude",
+  "auto_start": true,
+  "log_level": "info",
+  "log_retention_days": 7,
+  "supervisor": {
+    "enabled": true,
+    "prompt_template": "你是一个Supervisor，请根据 SUPERVISOR_GUIDE.md 执行任务管理工作。当前目录: {project_path}"
+  },
+  "executor": {
+    "enabled": true,
+    "prompt_template": "你是一个Executor，请根据 EXECUTOR_GUIDE.md 执行任务。当前目录: {project_path}"
+  },
+  "watcher": {
+    "check_inbox": true,
+    "check_queue": true,
+    "check_executing": true
+  }
+}
