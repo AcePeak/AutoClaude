@@ -39,7 +39,27 @@ When a continuous task request is identified, execute these steps:
 - Confirm user's specific requirements
 - Ask user if anything is unclear
 
-### 2. Create Task File
+### 2. Ask About Iteration Count
+
+**IMPORTANT:** Before creating the task, ask the user how many review iterations they want:
+
+```
+How many review iterations would you like for this task?
+- Enter a number (e.g., 3) = Task will be approved after at most N reviews
+- Enter 0 = Infinite iterations (keep refining until manually stopped)
+
+Default is 3 if not specified.
+```
+
+**Iteration meanings:**
+| Value | Behavior |
+|-------|----------|
+| 0 | Infinite loop - Supervisor never auto-approves, keeps requesting improvements until user manually approves |
+| 1 | Quick mode - Approved after first successful execution (minimal review) |
+| 3 | Default - Up to 3 rounds of review and improvement |
+| 5+ | Thorough - Multiple rounds of polish and refinement |
+
+### 3. Create Task File
 Create task file in `collaboration/queue/` directory:
 
 **Filename format:**
@@ -55,6 +75,8 @@ status: PENDING
 priority: normal
 created: <ISO 8601 time>
 assigned_to: null
+iteration: 1
+max_iterations: <user specified, default 3, 0 for infinite>
 source: user_chat
 depends_on: []
 ---
@@ -72,11 +94,11 @@ depends_on: []
 ## Execution Feedback
 (Waiting for Executor to fill)
 
-## Review Comments
-(Waiting for Supervisor to fill)
+## Review History
+(Waiting for Supervisor to fill after each review)
 ```
 
-### 3. Confirm and Notify User
+### 4. Confirm and Notify User
 
 After creating task, confirm to user:
 
@@ -84,10 +106,19 @@ After creating task, confirm to user:
 Task added to queue:
 - Task ID: <task_id>
 - Description: <short description>
+- Max iterations: <N or "infinite">
 - Status: Pending
 
 Supervisor will analyze this task on next check, Executor will execute automatically.
 You can check task status in collaboration/queue/ directory.
+```
+
+**Note about infinite iterations (max_iterations: 0):**
+When user chooses infinite iterations, remind them:
+```
+Note: This task is set to infinite iterations. Supervisor will keep requesting
+improvements indefinitely. To approve the task manually, edit the task file
+and change status to APPROVED, or set max_iterations to current iteration number.
 ```
 
 ## Priority Judgment

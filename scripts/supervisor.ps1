@@ -143,7 +143,8 @@ if (Test-Path $executingDir) {
 }
 $statusInfo += "### Executing Tasks ($($executingTasks.Count))`n"
 foreach ($task in $executingTasks) {
-    $statusInfo += "- $($task.name) [Status: $($task.status), Iteration: $($task.iteration)/$($task.maxIterations)]`n"
+    $maxIterLabel = if ($task.maxIterations -eq 0) { "infinite" } else { $task.maxIterations }
+    $statusInfo += "- $($task.name) [Status: $($task.status), Iteration: $($task.iteration)/$maxIterLabel]`n"
 }
 
 # Select a random review persona
@@ -179,20 +180,36 @@ $statusInfo
 
 1. **If inbox has new content:** Convert to task files in queue/, then clear inbox (keep header)
 
-2. **If there are tasks with REVIEW status:** Perform CRITICAL review:
-   - Check the iteration count (shown above)
-   - If iteration 1: Find at least 2-3 improvements needed
-   - If iteration 2: Check if previous feedback was addressed, find remaining issues
-   - If iteration 3+: Can approve if major issues resolved
+2. **If there are tasks with REVIEW status:** Perform review based on max_iterations:
 
-   When REJECTING (most reviews):
+   **Check max_iterations value first:**
+   - `max_iterations: 0` = INFINITE MODE (see below)
+   - `max_iterations: 1` = QUICK MODE (approve if basically works)
+   - `max_iterations: N` = STANDARD MODE (approve consideration at iteration N)
+
+   **INFINITE MODE (max_iterations = 0):**
+   - NEVER approve - always find improvements
+   - Keep pushing for perfection indefinitely
+   - Add note: "Infinite iteration mode - awaiting manual user approval"
+   - User must manually edit task to approve
+
+   **QUICK MODE (max_iterations = 1):**
+   - Approve if basic functionality works
+   - Only reject for critical/blocking issues
+
+   **STANDARD MODE (max_iterations >= 2):**
+   - Iteration 1: Find 2-3 improvements
+   - Iteration 2: Check previous feedback addressed
+   - Iteration >= max_iterations: Can approve if major issues resolved
+
+   **When REJECTING:**
    - Increment the iteration field in YAML front matter
    - Add detailed feedback under "## Review History" section
    - List "Must Fix", "Should Fix", and "Nice to Have" items
    - Move task back to queue/ directory
    - Set status to PENDING
 
-   When APPROVING (rare, usually iteration 3+):
+   **When APPROVING (not allowed for infinite mode):**
    - Move task to completed/ directory
    - Add final review notes
 
@@ -201,6 +218,7 @@ $statusInfo
 ## Task File Format Notes
 - Ensure YAML front matter includes: iteration, max_iterations fields
 - If iteration field missing, add it with value 1
+- max_iterations: 0 means infinite (never auto-approve)
 - Default max_iterations is 3
 "@
 

@@ -58,15 +58,33 @@ When `inbox.md` has new content:
 
 When tasks in `executing/` have REVIEW status:
 
-1. **Check iteration count** in task metadata
+1. **Check iteration settings** in task metadata
    - If `iteration` field doesn't exist, set it to 1
-   - If `iteration >= max_iterations` (default: 3), consider final approval
+   - Check `max_iterations` value:
+     - `0` = Infinite iterations (NEVER auto-approve)
+     - `1` = Quick mode (approve if basically works)
+     - `3` = Default (standard review process)
+     - `N` = Approve consideration starts at iteration N
 
 2. **Review from a random persona** (choose one from above)
    - State which persona you're using
    - Evaluate the work from that perspective
 
-3. **Decision criteria:**
+3. **Decision criteria based on max_iterations:**
+
+   **If max_iterations = 0 (Infinite mode):**
+   - NEVER approve automatically
+   - Always find improvements, no matter how small
+   - Keep pushing for perfection
+   - Only user can manually approve by editing the task file
+   - Add note: "Infinite iteration mode - awaiting manual approval"
+
+   **If max_iterations = 1 (Quick mode):**
+   - Approve if basic functionality works
+   - Only reject for critical issues
+   - Minor issues can be noted but don't block approval
+
+   **If max_iterations >= 2 (Standard mode):**
    - **First review (iteration 1):** Almost always find improvements. Look for:
      - Missing edge cases
      - Code quality issues
@@ -78,7 +96,7 @@ When tasks in `executing/` have REVIEW status:
      - New issues emerged
      - Quality meets standards
 
-   - **Third+ review (iteration 3+):** Can approve if:
+   - **Iteration >= max_iterations:** Can approve if:
      - All major issues resolved
      - Remaining issues are minor/cosmetic
      - Core functionality is solid
@@ -88,10 +106,12 @@ When tasks in `executing/` have REVIEW status:
    - Add specific, actionable feedback
    - Prioritize feedback items (must-fix vs nice-to-have)
    - Move task back to `queue/`
+   - For infinite mode: always reject with new improvement suggestions
 
-5. **If approved (rare, usually iteration 3+):**
+5. **If approved:**
    - Move task to `completed/`
    - Add approval notes with final assessment
+   - Note: Cannot approve if max_iterations = 0 (user must do it manually)
 
 ## Task File Format
 
