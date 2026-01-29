@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AutoClaude Settings</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+      font-size: 18px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+      font-size: 13px;
+    }
+    input[type="number"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    input[type="number"]:focus {
+      outline: none;
+      border-color: #007bff;
+    }
+    .hint {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .buttons {
+      margin-top: 20px;
+      text-align: right;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    button.primary {
+      background: #007bff;
+      color: white;
+    }
+    button.primary:hover {
+      background: #0056b3;
+    }
+    button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    button.secondary:hover {
+      background: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h2>AutoClaude Settings</h2>
+
+  <div class="form-group">
+    <label for="maxExecutors">Maximum Executors</label>
+    <input type="number" id="maxExecutors" min="1" max="16" value="2">
+    <div class="hint">Recommended: <span id="recommended"></span> (based on <span id="cpuCount"></span> CPU cores)</div>
+  </div>
+
+  <div class="form-group">
+    <label for="checkInterval">Check Interval (seconds)</label>
+    <input type="number" id="checkInterval" min="10" max="600" value="60">
+    <div class="hint">How often to check for new tasks (10-600 seconds)</div>
+  </div>
+
+  <div class="buttons">
+    <button class="secondary" onclick="window.close()">Cancel</button>
+    <button class="primary" onclick="saveSettings()">Save</button>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    async function loadSettings() {
+      const settings = await ipcRenderer.invoke('get-settings');
+      const cpuCount = await ipcRenderer.invoke('get-cpu-count');
+
+      document.getElementById('maxExecutors').value = settings.max_executors || 2;
+      document.getElementById('checkInterval').value = settings.check_interval_seconds || 60;
+
+      const recommended = Math.max(1, Math.min(4, Math.floor(cpuCount / 2)));
+      document.getElementById('recommended').textContent = recommended;
+      document.getElementById('cpuCount').textContent = cpuCount;
+    }
+
+    async function saveSettings() {
+      const settings = {
+        max_executors: parseInt(document.getElementById('maxExecutors').value, 10),
+        check_interval_seconds: parseInt(document.getElementById('checkInterval').value, 10)
+      };
+
+      await ipcRenderer.invoke('save-settings', settings);
+      window.close();
+    }
+
+    loadSettings();
+  </script>
+</body>
+</html>

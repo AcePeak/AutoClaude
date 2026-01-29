@@ -1,5 +1,10 @@
 # Build output
 dist/
+dist-electron/
+
+# Node.js
+node_modules/
+package-lock.json
 
 # Logs
 *.log
@@ -16,4 +21,9 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test
 test-project/
+
+# Electron Builder cache
+.cache/
