@@ -343,11 +343,31 @@ $previousLogHistory
 "@
     }
 
+    # Read metrics for iteration tracking
+    $metricsFile = Join-Path $CollabDir ".autoclaude\metrics.md"
+    $currentIterations = 0
+    if (Test-Path $metricsFile) {
+        $metricsContent = Get-Content $metricsFile -Raw -ErrorAction SilentlyContinue
+        if ($metricsContent -match "Total task completions\s*\|\s*(\d+)") {
+            $currentIterations = [int]$Matches[1]
+        }
+    }
+
+    # Determine if refactoring is due
+    $lightRefactorDue = ($currentIterations % 5 -eq 4)  # Every 5 iterations
+    $heavyRefactorDue = ($currentIterations % 15 -eq 14)  # Every 15 iterations
+    $refactorNote = ""
+    if ($heavyRefactorDue) {
+        $refactorNote = "`n`n**HEAVY REFACTORING DUE**: This is iteration $($currentIterations + 1). After completing the task, perform heavy refactoring (see EXECUTOR_GUIDE.md)."
+    } elseif ($lightRefactorDue) {
+        $refactorNote = "`n`n**LIGHT REFACTORING DUE**: This is iteration $($currentIterations + 1). After completing the task, perform light refactoring (see EXECUTOR_GUIDE.md)."
+    }
+
     # Build Executor prompt
     $prompt = @"
 You are an Executor in the AutoClaude system, ID: $ExecutorId
 
-Please read collaboration/EXECUTOR_GUIDE.md to understand your responsibilities.
+Please read collaboration/EXECUTOR_GUIDE.md to understand your full responsibilities.
 $recoveryContext
 ## Current Task
 
@@ -358,18 +378,48 @@ $taskContent
 
 ## Execution Instructions
 
-1. Carefully read task description and acceptance criteria
-2. Perform required operations in project directory (write code, create files, etc.)
-3. After completion, update task file:
-   - Record what you did in "Execution Feedback" section
-   - Mark completion status of each acceptance criterion
-   - Change status to REVIEW
+### 1. Analyze & Execute
+- Read task description and acceptance criteria carefully
+- Identify project type (software/business/documentation/other)
+- Perform required operations
 
-Notes:
-- Working directory is project root: $ProjectPath
-- Task file is at: collaboration/executing/$($taskToExecute.name)
-- After completion, you must change status to REVIEW
-- Log file for this task: collaboration/.autoclaude/logs/tasks/$($taskToExecute.id).log
+### 2. Self-Testing (CRITICAL)
+- Run existing tests first (check collaboration/.autoclaude/tests/test_registry.md)
+- Write NEW tests for new functionality
+- For software: unit tests, integration tests
+- For business: persona validation, market checks
+- For documentation: accuracy and consistency checks
+- Update test_registry.md with new tests
+
+### 3. Update Test Registry
+After adding tests, update collaboration/.autoclaude/tests/test_registry.md:
+- Add new test entries with IDs
+- Record test results
+- Note any failures
+
+### 4. Check Architecture
+- Current iteration count: $currentIterations$refactorNote
+- If refactoring is due, perform it after task completion
+- Update collaboration/.autoclaude/metrics.md
+
+### 5. Submit for Review
+Update task file with:
+- Detailed execution feedback
+- Test results (tests added, pass/fail counts)
+- Any refactoring performed
+- Change status to REVIEW
+
+## Important Paths
+- Working directory: $ProjectPath
+- Task file: collaboration/executing/$($taskToExecute.name)
+- Test registry: collaboration/.autoclaude/tests/test_registry.md
+- Metrics: collaboration/.autoclaude/metrics.md
+- Task log: collaboration/.autoclaude/logs/tasks/$($taskToExecute.id).log
+
+## Quality Requirements
+- No submission without tests
+- All existing tests must pass
+- Document everything you changed
 "@
 
     # Call Claude

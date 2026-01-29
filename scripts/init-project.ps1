@@ -55,6 +55,11 @@ function Initialize-AutoClaudeProject {
         "collaboration\.autoclaude",
         "collaboration\.autoclaude\lock",
         "collaboration\.autoclaude\logs",
+        "collaboration\.autoclaude\logs\tasks",
+        "collaboration\.autoclaude\tests",
+        "collaboration\.autoclaude\tests\software",
+        "collaboration\.autoclaude\tests\business",
+        "collaboration\.autoclaude\tests\general",
         ".claude"
     )
 
@@ -74,6 +79,8 @@ function Initialize-AutoClaudeProject {
         "EXECUTOR_GUIDE.md" = "collaboration\EXECUTOR_GUIDE.md"
         "CLAUDE.md" = "CLAUDE.md"
         "config.json" = "collaboration\.autoclaude\config.json"
+        "test_registry.md" = "collaboration\.autoclaude\tests\test_registry.md"
+        "metrics.md" = "collaboration\.autoclaude\metrics.md"
     }
 
     foreach ($template in $templateMappings.GetEnumerator()) {
