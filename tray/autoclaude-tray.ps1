@@ -252,10 +252,14 @@ function Build-ContextMenu {
     }
     $menu.Items.Add($watcherItem) | Out-Null
 
-    # View logs
-    $logItem = New-Object System.Windows.Forms.ToolStripMenuItem
-    $logItem.Text = "View Logs"
-    $logItem.Add_Click({
+    # View logs submenu
+    $logMenu = New-Object System.Windows.Forms.ToolStripMenuItem
+    $logMenu.Text = "View Logs"
+
+    # Tray log
+    $trayLogItem = New-Object System.Windows.Forms.ToolStripMenuItem
+    $trayLogItem.Text = "Tray Application Log"
+    $trayLogItem.Add_Click({
         $logFile = Join-Path $AppDataDir "tray.log"
         if (Test-Path $logFile) {
             Start-Process "notepad.exe" -ArgumentList $logFile
@@ -263,7 +267,78 @@ function Build-ContextMenu {
             Show-Notification -Title "AutoClaude" -Message "Log file does not exist" -Icon Warning
         }
     })
-    $menu.Items.Add($logItem) | Out-Null
+    $logMenu.DropDownItems.Add($trayLogItem) | Out-Null
+
+    $logMenu.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
+
+    # Project task logs
+    if ($projects.Count -gt 0) {
+        foreach ($project in $projects) {
+            $projectLogItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $projectLogItem.Text = "$($project.name) Logs"
+            $projectPath = $project.path
+
+            # Open logs folder
+            $openLogFolderItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $openLogFolderItem.Text = "Open Logs Folder"
+            $openLogFolderItem.Add_Click({
+                $logDir = Join-Path $projectPath "collaboration\.autoclaude\logs"
+                if (Test-Path $logDir) {
+                    Start-Process "explorer.exe" -ArgumentList $logDir
+                } else {
+                    Show-Notification -Title "AutoClaude" -Message "No logs yet for this project" -Icon Warning
+                }
+            }.GetNewClosure())
+            $projectLogItem.DropDownItems.Add($openLogFolderItem) | Out-Null
+
+            # View task logs (launch view-logs.ps1)
+            $viewTaskLogsItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $viewTaskLogsItem.Text = "View Task Logs"
+            $viewTaskLogsItem.Add_Click({
+                $viewLogsScript = Join-Path $ScriptsDir "view-logs.ps1"
+                if (Test-Path $viewLogsScript) {
+                    Start-Process "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$viewLogsScript`" -ProjectPath `"$projectPath`""
+                } else {
+                    # Fallback: open logs folder
+                    $logDir = Join-Path $projectPath "collaboration\.autoclaude\logs"
+                    if (Test-Path $logDir) {
+                        Start-Process "explorer.exe" -ArgumentList $logDir
+                    }
+                }
+            }.GetNewClosure())
+            $projectLogItem.DropDownItems.Add($viewTaskLogsItem) | Out-Null
+
+            # Today's executor log
+            $executorLogItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $executorLogItem.Text = "Today's Executor Log"
+            $executorLogItem.Add_Click({
+                $logFile = Join-Path $projectPath "collaboration\.autoclaude\logs\executor_$(Get-Date -Format 'yyyyMMdd').log"
+                if (Test-Path $logFile) {
+                    Start-Process "notepad.exe" -ArgumentList $logFile
+                } else {
+                    Show-Notification -Title "AutoClaude" -Message "No executor log for today" -Icon Warning
+                }
+            }.GetNewClosure())
+            $projectLogItem.DropDownItems.Add($executorLogItem) | Out-Null
+
+            # Today's supervisor log
+            $supervisorLogItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $supervisorLogItem.Text = "Today's Supervisor Log"
+            $supervisorLogItem.Add_Click({
+                $logFile = Join-Path $projectPath "collaboration\.autoclaude\logs\supervisor_$(Get-Date -Format 'yyyyMMdd').log"
+                if (Test-Path $logFile) {
+                    Start-Process "notepad.exe" -ArgumentList $logFile
+                } else {
+                    Show-Notification -Title "AutoClaude" -Message "No supervisor log for today" -Icon Warning
+                }
+            }.GetNewClosure())
+            $projectLogItem.DropDownItems.Add($supervisorLogItem) | Out-Null
+
+            $logMenu.DropDownItems.Add($projectLogItem) | Out-Null
+        }
+    }
+
+    $menu.Items.Add($logMenu) | Out-Null
 
     $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 

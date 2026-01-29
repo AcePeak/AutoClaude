@@ -1,9 +1,12 @@
 # AutoClaude - Executor Script
-# Usage: executor.ps1 -ProjectPath <path>
+# Usage: executor.ps1 -ProjectPath <path> [-ResumeTask <task_id>]
 
 param(
     [Parameter(Mandatory=$true)]
-    [string]$ProjectPath
+    [string]$ProjectPath,
+
+    [Parameter(Mandatory=$false)]
+    [string]$ResumeTask = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +15,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ExecutorId = "executor_$(Get-Date -Format 'yyyyMMddHHmmss')_$PID"
 $LogDir = Join-Path $ProjectPath "collaboration\.autoclaude\logs"
+$TaskLogDir = Join-Path $LogDir "tasks"
 $LogFile = Join-Path $LogDir "executor_$(Get-Date -Format 'yyyyMMdd').log"
 $LockDir = Join-Path $ProjectPath "collaboration\.autoclaude\lock"
 
@@ -19,11 +23,17 @@ $LockDir = Join-Path $ProjectPath "collaboration\.autoclaude\lock"
 if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
+if (-not (Test-Path $TaskLogDir)) {
+    New-Item -ItemType Directory -Path $TaskLogDir -Force | Out-Null
+}
 if (-not (Test-Path $LockDir)) {
     New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
 }
 
-# Log function
+# Current task log file (set when task is claimed)
+$script:CurrentTaskLogFile = $null
+
+# Log function - writes to both global log and task-specific log
 function Write-Log {
     param(
         [string]$Message,
@@ -31,7 +41,14 @@ function Write-Log {
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$ExecutorId] [$Level] $Message"
+
+    # Write to global executor log
     Add-Content -Path $LogFile -Value $logEntry -Encoding UTF8
+
+    # Write to task-specific log if set
+    if ($script:CurrentTaskLogFile -and (Test-Path (Split-Path $script:CurrentTaskLogFile -Parent))) {
+        Add-Content -Path $script:CurrentTaskLogFile -Value $logEntry -Encoding UTF8
+    }
 
     $color = switch ($Level) {
         "INFO" { "Cyan" }
@@ -43,21 +60,83 @@ function Write-Log {
     Write-Host $logEntry -ForegroundColor $color
 }
 
+# Initialize task-specific log file
+function Initialize-TaskLog {
+    param([string]$TaskId)
+
+    $script:CurrentTaskLogFile = Join-Path $TaskLogDir "$TaskId.log"
+
+    # Create or append to task log
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $header = "`n`n========== Execution Session: $timestamp =========="
+    $header += "`nExecutor ID: $ExecutorId"
+    $header += "`n================================================`n"
+    Add-Content -Path $script:CurrentTaskLogFile -Value $header -Encoding UTF8
+}
+
+# Read previous task log for recovery context
+function Get-TaskLogHistory {
+    param([string]$TaskId)
+
+    $taskLogFile = Join-Path $TaskLogDir "$TaskId.log"
+    if (Test-Path $taskLogFile) {
+        return Get-Content $taskLogFile -Raw -ErrorAction SilentlyContinue
+    }
+    return ""
+}
+
+# Check if a lock's owner process is still running
+function Test-LockProcessAlive {
+    param([string]$LockFile)
+
+    if (-not (Test-Path $LockFile)) {
+        return $false
+    }
+
+    try {
+        $lockContent = Get-Content $LockFile -Raw | ConvertFrom-Json
+        $lockPid = $lockContent.pid
+
+        # Check if process is still running
+        $process = Get-Process -Id $lockPid -ErrorAction SilentlyContinue
+        return ($null -ne $process)
+    } catch {
+        return $false
+    }
+}
+
 # Try to acquire task lock
 function Get-TaskLock {
-    param([string]$TaskId)
+    param(
+        [string]$TaskId,
+        [switch]$ForceIfOrphaned
+    )
 
     $lockFile = Join-Path $LockDir "$TaskId.lock"
 
     # Check if lock already exists
     if (Test-Path $lockFile) {
-        # Check if lock is expired (over 30 minutes is considered expired)
-        $lockInfo = Get-Item $lockFile
-        $lockAge = (Get-Date) - $lockInfo.LastWriteTime
-        if ($lockAge.TotalMinutes -lt 30) {
-            return $false
+        # Check if lock owner process is still alive
+        $processAlive = Test-LockProcessAlive -LockFile $lockFile
+
+        if ($processAlive) {
+            # Check if lock is expired (over 30 minutes is considered expired even if process alive)
+            $lockInfo = Get-Item $lockFile
+            $lockAge = (Get-Date) - $lockInfo.LastWriteTime
+            if ($lockAge.TotalMinutes -lt 30) {
+                return @{ success = $false; orphaned = $false }
+            }
         }
-        # Lock expired, delete it
+
+        # Lock is orphaned (process dead) or expired
+        $isOrphaned = -not $processAlive
+        if ($isOrphaned) {
+            Write-Log "Detected orphaned lock for task: $TaskId (owner process not running)" "WARN"
+        } else {
+            Write-Log "Detected expired lock for task: $TaskId" "WARN"
+        }
+
+        # Remove stale lock
         Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
     }
 
@@ -76,10 +155,10 @@ function Get-TaskLock {
         $writer.Close()
         $stream.Close()
 
-        return $true
+        return @{ success = $true; orphaned = $false }
     } catch {
         # File already exists or other error
-        return $false
+        return @{ success = $false; orphaned = $false }
     }
 }
 
@@ -131,8 +210,60 @@ if (-not (Test-Path $ExecutingDir)) {
 
 # Find claimable task
 $taskToExecute = $null
+$isResumingOrphan = $false
+$previousLogHistory = ""
 
-if (Test-Path $QueueDir) {
+# First check: Resume specific task if requested
+if ($ResumeTask -ne "") {
+    Write-Log "Attempting to resume specified task: $ResumeTask" "INFO"
+    $taskFile = Join-Path $ExecutingDir "$ResumeTask.md"
+    if (Test-Path $taskFile) {
+        $lockResult = Get-TaskLock -TaskId $ResumeTask -ForceIfOrphaned
+        if ($lockResult.success) {
+            $taskToExecute = @{
+                id = $ResumeTask
+                file = $taskFile
+                name = "$ResumeTask.md"
+                isInExecuting = $true
+            }
+            $isResumingOrphan = $true
+            $previousLogHistory = Get-TaskLogHistory -TaskId $ResumeTask
+            Write-Log "Resuming specified task: $ResumeTask" "OK"
+        }
+    }
+}
+
+# Second check: Look for orphaned tasks in executing directory
+if (-not $taskToExecute -and (Test-Path $ExecutingDir)) {
+    $executingFiles = Get-ChildItem -Path $ExecutingDir -Filter "*.md" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime
+
+    foreach ($file in $executingFiles) {
+        $taskId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+
+        # Read task content to check status
+        $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
+        if ($content -match "status:\s*EXECUTING") {
+            # This task might be orphaned, try to acquire lock
+            $lockResult = Get-TaskLock -TaskId $taskId
+
+            if ($lockResult.success) {
+                Write-Log "Found and claimed orphaned task: $taskId" "WARN"
+                $taskToExecute = @{
+                    id = $taskId
+                    file = $file.FullName
+                    name = $file.Name
+                    isInExecuting = $true
+                }
+                $isResumingOrphan = $true
+                $previousLogHistory = Get-TaskLogHistory -TaskId $taskId
+                break
+            }
+        }
+    }
+}
+
+# Third check: Look for new tasks in queue
+if (-not $taskToExecute -and (Test-Path $QueueDir)) {
     $queueFiles = Get-ChildItem -Path $QueueDir -Filter "*.md" -ErrorAction SilentlyContinue | Sort-Object Name
 
     foreach ($file in $queueFiles) {
@@ -140,12 +271,14 @@ if (Test-Path $QueueDir) {
         $taskId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
 
         # Try to acquire lock
-        if (Get-TaskLock -TaskId $taskId) {
+        $lockResult = Get-TaskLock -TaskId $taskId
+        if ($lockResult.success) {
             Write-Log "Successfully acquired task lock: $taskId" "OK"
             $taskToExecute = @{
                 id = $taskId
                 file = $file.FullName
                 name = $file.Name
+                isInExecuting = $false
             }
             break
         } else {
@@ -161,27 +294,61 @@ if (-not $taskToExecute) {
 
 Write-Log "Starting task execution: $($taskToExecute.name)" "INFO"
 
+# Initialize per-task log
+Initialize-TaskLog -TaskId $taskToExecute.id
+
 try {
     # Read task content
     $taskContent = Get-Content $taskToExecute.file -Raw
 
-    # Move task to executing directory
-    $executingPath = Join-Path $ExecutingDir $taskToExecute.name
-    Move-Item -Path $taskToExecute.file -Destination $executingPath -Force
+    # Determine executing path
+    $executingPath = $null
+
+    if ($taskToExecute.isInExecuting) {
+        # Task is already in executing directory (orphaned task recovery)
+        $executingPath = $taskToExecute.file
+        Write-Log "Task already in executing directory (recovery mode)" "INFO"
+    } else {
+        # Move task to executing directory
+        $executingPath = Join-Path $ExecutingDir $taskToExecute.name
+        Move-Item -Path $taskToExecute.file -Destination $executingPath -Force
+        Write-Log "Task moved to executing directory" "INFO"
+    }
 
     # Update task status to EXECUTING
     $taskContent = $taskContent -replace "status:\s*\w+", "status: EXECUTING"
     $taskContent = $taskContent -replace "assigned_to:\s*\w*", "assigned_to: $ExecutorId"
     Set-Content -Path $executingPath -Value $taskContent -Encoding UTF8
 
-    Write-Log "Task moved to executing directory" "INFO"
+    # Build recovery context if resuming orphaned task
+    $recoveryContext = ""
+    if ($isResumingOrphan -and $previousLogHistory -ne "") {
+        Write-Log "Including previous execution log for recovery context" "INFO"
+        $recoveryContext = @"
+
+## IMPORTANT: Recovery Mode
+
+This task was previously being executed but was interrupted unexpectedly.
+Below is the execution log from the previous session. Please:
+1. Review what was already done
+2. Continue from where it left off
+3. Do NOT redo work that was already completed
+4. If unsure about state, check the actual files in the project
+
+### Previous Execution Log:
+``````
+$previousLogHistory
+``````
+
+"@
+    }
 
     # Build Executor prompt
     $prompt = @"
 You are an Executor in the AutoClaude system, ID: $ExecutorId
 
 Please read collaboration/EXECUTOR_GUIDE.md to understand your responsibilities.
-
+$recoveryContext
 ## Current Task
 
 Task file: collaboration/executing/$($taskToExecute.name)
@@ -202,6 +369,7 @@ Notes:
 - Working directory is project root: $ProjectPath
 - Task file is at: collaboration/executing/$($taskToExecute.name)
 - After completion, you must change status to REVIEW
+- Log file for this task: collaboration/.autoclaude/logs/tasks/$($taskToExecute.id).log
 "@
 
     # Call Claude

@@ -102,6 +102,7 @@ function Check-Project {
     $result = @{
         needsSupervisor = $false
         needsExecutor = $false
+        orphanedTasks = @()
         reason = ""
     }
 
@@ -137,18 +138,53 @@ function Check-Project {
         }
     }
 
-    # Check executing/ directory for tasks pending review
+    # Check executing/ directory for tasks pending review or orphaned tasks
     if ($config.check_executing) {
         $executingDir = Join-Path $collabDir "executing"
+        $lockDir = Join-Path $collabDir ".autoclaude\lock"
+
         if (Test-Path $executingDir) {
             $executingTasks = Get-ChildItem -Path $executingDir -Filter "*.md" -ErrorAction SilentlyContinue
             foreach ($task in $executingTasks) {
                 $content = Get-Content $task.FullName -Raw -ErrorAction SilentlyContinue
+
+                # Check for tasks pending review
                 if ($content -match "status:\s*REVIEW") {
                     $result.needsSupervisor = $true
                     if ($result.reason) { $result.reason += "; " }
                     $result.reason += "task(s) pending review"
-                    break
+                }
+
+                # Check for orphaned tasks (EXECUTING status but lock owner process dead)
+                if ($content -match "status:\s*EXECUTING") {
+                    $taskId = [System.IO.Path]::GetFileNameWithoutExtension($task.Name)
+                    $lockFile = Join-Path $lockDir "$taskId.lock"
+
+                    $isOrphaned = $false
+
+                    if (-not (Test-Path $lockFile)) {
+                        # No lock file means orphaned
+                        $isOrphaned = $true
+                    } else {
+                        # Check if lock owner process is still alive
+                        try {
+                            $lockContent = Get-Content $lockFile -Raw | ConvertFrom-Json
+                            $lockPid = $lockContent.pid
+                            $process = Get-Process -Id $lockPid -ErrorAction SilentlyContinue
+                            if ($null -eq $process) {
+                                $isOrphaned = $true
+                            }
+                        } catch {
+                            $isOrphaned = $true
+                        }
+                    }
+
+                    if ($isOrphaned) {
+                        $result.needsExecutor = $true
+                        $result.orphanedTasks += @($taskId)
+                        if ($result.reason) { $result.reason += "; " }
+                        $result.reason += "orphaned task needs recovery: $taskId"
+                    }
                 }
             }
         }
@@ -174,12 +210,21 @@ function Trigger-Supervisor {
 
 # Trigger Executor
 function Trigger-Executor {
-    param([string]$ProjectPath)
+    param(
+        [string]$ProjectPath,
+        [string]$ResumeTask = ""
+    )
 
     $executorScript = Join-Path $ScriptDir "executor.ps1"
     if (Test-Path $executorScript) {
-        Write-Log "Triggering Executor: $ProjectPath" "INFO"
-        Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$executorScript`" -ProjectPath `"$ProjectPath`"" -WindowStyle Hidden
+        $args = "-ExecutionPolicy Bypass -File `"$executorScript`" -ProjectPath `"$ProjectPath`""
+        if ($ResumeTask -ne "") {
+            $args += " -ResumeTask `"$ResumeTask`""
+            Write-Log "Triggering Executor to resume task: $ResumeTask" "INFO"
+        } else {
+            Write-Log "Triggering Executor: $ProjectPath" "INFO"
+        }
+        Start-Process -FilePath "powershell.exe" -ArgumentList $args -WindowStyle Hidden
         return $true
     } else {
         Write-Log "Executor script not found: $executorScript" "ERROR"
@@ -245,7 +290,15 @@ function Start-Watcher {
                     }
 
                     if ($checkResult.needsExecutor) {
-                        Trigger-Executor -ProjectPath $project
+                        # First, resume orphaned tasks
+                        if ($checkResult.orphanedTasks.Count -gt 0) {
+                            foreach ($orphanedTaskId in $checkResult.orphanedTasks) {
+                                Trigger-Executor -ProjectPath $project -ResumeTask $orphanedTaskId
+                            }
+                        } else {
+                            # Normal executor for new tasks
+                            Trigger-Executor -ProjectPath $project
+                        }
                     }
                 } else {
                     Write-Log "[$projectName] No changes" "INFO"
