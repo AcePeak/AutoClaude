@@ -143,22 +143,29 @@ ipcMain.handle('register-context-menu', async () => {
       ? path.dirname(process.execPath)
       : path.join(__dirname, '..');
 
+    // Get icon path
+    const iconPath = path.join(appPath, 'resources', 'assets', 'icon.ico');
+
     // Create registry entries for context menu
     const regCommands = [
       // Directory background - Initialize
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit" /ve /d "Initialize AutoClaude Project" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit" /v "Icon" /d "${iconPath}" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit\\command" /ve /d "\\"${process.execPath}\\" --init \\"%V\\"" /f`,
 
       // Directory background - Open Claude
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen" /ve /d "Open Claude" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen" /v "Icon" /d "${iconPath}" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen\\command" /ve /d "\\"${process.execPath}\\" --open-claude \\"%V\\"" /f`,
 
       // Directory - Initialize
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit" /ve /d "Initialize AutoClaude Project" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit" /v "Icon" /d "${iconPath}" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit\\command" /ve /d "\\"${process.execPath}\\" --init \\"%1\\"" /f`,
 
       // Directory - Open Claude
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /ve /d "Open Claude" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /v "Icon" /d "${iconPath}" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen\\command" /ve /d "\\"${process.execPath}\\" --open-claude \\"%1\\"" /f`
     ];
 
@@ -218,31 +225,62 @@ ipcMain.handle('check-context-menu', async () => {
 // Handle command line arguments (for context menu integration)
 function handleCommandLineArgs() {
   const args = process.argv.slice(app.isPackaged ? 1 : 2);
+  const fs = require('fs');
+
+  console.log('Command line args:', args);
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 
     if (arg === '--init' && args[i + 1]) {
-      const targetPath = args[i + 1];
+      let targetPath = args[i + 1];
+      // Remove quotes if present
+      targetPath = targetPath.replace(/^["']|["']$/g, '');
+
+      console.log('Initializing project at:', targetPath);
+
+      // Verify path exists
+      if (!fs.existsSync(targetPath)) {
+        console.error('Path does not exist:', targetPath);
+        app.whenReady().then(() => {
+          const { Notification } = require('electron');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'AutoClaude Error',
+              body: `Path does not exist: ${targetPath}`
+            }).show();
+          }
+        });
+        return true;
+      }
+
       // Initialize project
-      const { initProject } = require('./cli/init');
-      initProject(targetPath).then(() => {
-        const { Notification } = require('electron');
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'AutoClaude',
-            body: `Project initialized at ${targetPath}`
-          }).show();
-        }
-      }).catch(err => {
-        const { Notification } = require('electron');
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'AutoClaude Error',
-            body: err.message
-          }).show();
-        }
-      });
+      const { initProjectSync } = require('./cli/init');
+      try {
+        initProjectSync(targetPath);
+        console.log('Project initialized successfully');
+        app.whenReady().then(() => {
+          const { Notification } = require('electron');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'AutoClaude',
+              body: `Project initialized at ${targetPath}`
+            }).show();
+          }
+          // Don't quit - let the app continue running
+        });
+      } catch (err) {
+        console.error('Init error:', err);
+        app.whenReady().then(() => {
+          const { Notification } = require('electron');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'AutoClaude Error',
+              body: err.message
+            }).show();
+          }
+        });
+      }
       return true;
     }
 
@@ -295,25 +333,45 @@ app.on('before-quit', () => {
 app.on('second-instance', (event, commandLine, workingDirectory) => {
   // Check if this is a command line invocation
   const args = commandLine.slice(1);
+  const fs = require('fs');
+
+  console.log('Second instance args:', args);
+
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--init' && args[i + 1]) {
-      const targetPath = args[i + 1];
-      const { initProject } = require('./cli/init');
-      initProject(targetPath).then(() => {
+      let targetPath = args[i + 1];
+      // Remove quotes if present
+      targetPath = targetPath.replace(/^["']|["']$/g, '');
+
+      console.log('Second instance init at:', targetPath);
+
+      if (!fs.existsSync(targetPath)) {
+        if (tray) {
+          tray.showNotification('AutoClaude Error', `Path does not exist: ${targetPath}`);
+        }
+        return;
+      }
+
+      try {
+        const { initProjectSync } = require('./cli/init');
+        initProjectSync(targetPath);
         if (tray) {
           tray.showNotification('AutoClaude', `Project initialized at ${targetPath}`);
           tray.updateMenu();
         }
-      }).catch(err => {
+      } catch (err) {
+        console.error('Second instance init error:', err);
         if (tray) {
           tray.showNotification('AutoClaude Error', err.message);
         }
-      });
+      }
       return;
     }
 
     if (args[i] === '--open-claude' && args[i + 1]) {
-      const targetPath = args[i + 1];
+      let targetPath = args[i + 1];
+      targetPath = targetPath.replace(/^["']|["']$/g, '');
+
       const { spawn } = require('child_process');
       spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', 'claude'], {
         cwd: targetPath,
