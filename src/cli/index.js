@@ -25,8 +25,8 @@ program
       process.exit(1);
     }
 
-    const { initProject } = require('./init');
-    initProject(projectPath, { name: options.name });
+    const { initProjectSync } = require('./init');
+    initProjectSync(projectPath, { name: options.name });
 
     console.log(`\nAutoClaude initialized in: ${projectPath}`);
     console.log('\nNext steps:');

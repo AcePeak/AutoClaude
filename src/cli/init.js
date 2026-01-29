@@ -123,8 +123,8 @@ Add any important notes for the AI agents.
 
   // Generate initial dashboard
   try {
-    const dashboard = require('../core/dashboard');
-    dashboard.generate(projectPath);
+    const { generate } = require('../core/dashboard');
+    generate(projectPath);
   } catch (e) {
     // Dashboard generation optional
   }
@@ -225,6 +225,20 @@ I'll create tasks in \`collaboration/queue/\` with:
 `;
 }
 
+/**
+ * Async wrapper for initProject
+ */
+async function initProjectAsync(projectPath, options = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      initProject(projectPath, options);
+      resolve(true);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 // If run directly
 if (require.main === module) {
   const args = process.argv.slice(2);
@@ -243,4 +257,4 @@ if (require.main === module) {
   console.log('2. Start AutoClaude tray app to begin processing');
 }
 
-module.exports = { initProject };
+module.exports = { initProject: initProjectAsync, initProjectSync: initProject };

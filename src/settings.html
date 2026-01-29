@@ -18,6 +18,14 @@
       color: #333;
       font-size: 18px;
     }
+    h3 {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      color: #555;
+      font-size: 14px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+    }
     .form-group {
       margin-bottom: 15px;
     }
@@ -37,6 +45,15 @@
     input[type="number"]:focus {
       outline: none;
       border-color: #007bff;
+    }
+    input[type="checkbox"] {
+      margin-right: 8px;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
     }
     .hint {
       font-size: 11px;
@@ -69,10 +86,51 @@
     button.secondary:hover {
       background: #ccc;
     }
+    button.success {
+      background: #28a745;
+      color: white;
+    }
+    button.success:hover {
+      background: #1e7e34;
+    }
+    button.danger {
+      background: #dc3545;
+      color: white;
+    }
+    button.danger:hover {
+      background: #c82333;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .windows-only {
+      display: none;
+    }
+    .status-text {
+      font-size: 12px;
+      margin-top: 5px;
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
   </style>
 </head>
 <body>
   <h2>AutoClaude Settings</h2>
+
+  <h3>General</h3>
 
   <div class="form-group">
     <label for="maxExecutors">Maximum Executors</label>
@@ -86,6 +144,28 @@
     <div class="hint">How often to check for new tasks (10-600 seconds)</div>
   </div>
 
+  <div class="form-group">
+    <label class="checkbox-label">
+      <input type="checkbox" id="autoStart">
+      Start AutoClaude at login
+    </label>
+    <div class="hint">Automatically start the tray application when you log in</div>
+  </div>
+
+  <div class="windows-only" id="windowsSection">
+    <h3>Windows Integration</h3>
+
+    <div class="form-group">
+      <label>Explorer Context Menu</label>
+      <div class="hint">Add right-click menu options to Windows Explorer</div>
+      <div style="margin-top: 10px;">
+        <button id="btnRegister" class="success" onclick="registerContextMenu()">Add Context Menu</button>
+        <button id="btnUnregister" class="danger" onclick="unregisterContextMenu()">Remove Context Menu</button>
+      </div>
+      <div id="contextMenuStatus" class="status-text" style="display: none;"></div>
+    </div>
+  </div>
+
   <div class="buttons">
     <button class="secondary" onclick="window.close()">Cancel</button>
     <button class="primary" onclick="saveSettings()">Save</button>
@@ -97,23 +177,82 @@
     async function loadSettings() {
       const settings = await ipcRenderer.invoke('get-settings');
       const cpuCount = await ipcRenderer.invoke('get-cpu-count');
+      const platform = await ipcRenderer.invoke('get-platform');
 
       document.getElementById('maxExecutors').value = settings.max_executors || 2;
       document.getElementById('checkInterval').value = settings.check_interval_seconds || 60;
+      document.getElementById('autoStart').checked = settings.auto_start || false;
 
       const recommended = Math.max(1, Math.min(4, Math.floor(cpuCount / 2)));
       document.getElementById('recommended').textContent = recommended;
       document.getElementById('cpuCount').textContent = cpuCount;
+
+      // Show Windows-specific section
+      if (platform === 'win32') {
+        document.getElementById('windowsSection').style.display = 'block';
+        await checkContextMenuStatus();
+      }
     }
 
     async function saveSettings() {
       const settings = {
         max_executors: parseInt(document.getElementById('maxExecutors').value, 10),
-        check_interval_seconds: parseInt(document.getElementById('checkInterval').value, 10)
+        check_interval_seconds: parseInt(document.getElementById('checkInterval').value, 10),
+        auto_start: document.getElementById('autoStart').checked
       };
 
       await ipcRenderer.invoke('save-settings', settings);
       window.close();
+    }
+
+    async function checkContextMenuStatus() {
+      const isRegistered = await ipcRenderer.invoke('check-context-menu');
+      const statusEl = document.getElementById('contextMenuStatus');
+
+      if (isRegistered) {
+        statusEl.textContent = 'Context menu is currently registered';
+        statusEl.className = 'status-text status-success';
+        document.getElementById('btnRegister').disabled = true;
+        document.getElementById('btnUnregister').disabled = false;
+      } else {
+        statusEl.textContent = 'Context menu is not registered';
+        statusEl.className = 'status-text status-info';
+        document.getElementById('btnRegister').disabled = false;
+        document.getElementById('btnUnregister').disabled = true;
+      }
+      statusEl.style.display = 'block';
+    }
+
+    async function registerContextMenu() {
+      const result = await ipcRenderer.invoke('register-context-menu');
+      const statusEl = document.getElementById('contextMenuStatus');
+
+      if (result.success) {
+        statusEl.textContent = 'Context menu registered successfully! Right-click in any folder to see the options.';
+        statusEl.className = 'status-text status-success';
+        document.getElementById('btnRegister').disabled = true;
+        document.getElementById('btnUnregister').disabled = false;
+      } else {
+        statusEl.textContent = 'Failed: ' + result.message;
+        statusEl.className = 'status-text status-error';
+      }
+      statusEl.style.display = 'block';
+    }
+
+    async function unregisterContextMenu() {
+      const result = await ipcRenderer.invoke('unregister-context-menu');
+      const statusEl = document.getElementById('contextMenuStatus');
+
+      if (result.success) {
+        statusEl.textContent = 'Context menu removed successfully';
+        statusEl.className = 'status-text status-info';
+        document.getElementById('btnRegister').disabled = false;
+        document.getElementById('btnUnregister').disabled = true;
+      } else {
+        statusEl.textContent = 'Failed: ' + result.message;
+        statusEl.className = 'status-text status-error';
+      }
+      statusEl.style.display = 'block';
     }
 
     loadSettings();
