@@ -118,6 +118,125 @@ function Get-ProjectStatus {
     return $status
 }
 
+# Get detailed task list for a project
+function Get-ProjectTasks {
+    param([string]$ProjectPath)
+
+    $tasks = @()
+    $collabDir = Join-Path $ProjectPath "collaboration"
+
+    foreach ($dir in @("queue", "executing")) {
+        $taskDir = Join-Path $collabDir $dir
+        if (Test-Path $taskDir) {
+            $files = Get-ChildItem -Path $taskDir -Filter "*.md" -ErrorAction SilentlyContinue
+            foreach ($file in $files) {
+                $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
+                $task = @{
+                    id = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+                    name = $file.Name
+                    path = $file.FullName
+                    location = $dir
+                    status = "UNKNOWN"
+                    iteration = 1
+                    maxIterations = 3
+                }
+
+                if ($content -match "status:\s*(\w+)") {
+                    $task.status = $Matches[1]
+                }
+                if ($content -match "iteration:\s*(\d+)") {
+                    $task.iteration = [int]$Matches[1]
+                }
+                if ($content -match "max_iterations:\s*(\d+)") {
+                    $task.maxIterations = [int]$Matches[1]
+                }
+
+                # Extract short description from task
+                if ($content -match "## Task Description\s*\n+([^\n]+)") {
+                    $task.description = $Matches[1].Substring(0, [Math]::Min(50, $Matches[1].Length))
+                } else {
+                    $task.description = $task.id
+                }
+
+                $tasks += $task
+            }
+        }
+    }
+
+    return $tasks
+}
+
+# Approve a task (stop iterations)
+function Approve-Task {
+    param(
+        [string]$TaskPath,
+        [string]$ProjectPath
+    )
+
+    if (-not (Test-Path $TaskPath)) {
+        return $false
+    }
+
+    $content = Get-Content $TaskPath -Raw
+    $completedDir = Join-Path $ProjectPath "collaboration\completed"
+
+    # Update status to APPROVED
+    $content = $content -replace "status:\s*\w+", "status: APPROVED"
+
+    # Add approval note
+    $approvalNote = @"
+
+## Manual Approval
+- Approved by: User (via tray menu)
+- Approved at: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+- Note: Task iteration stopped by user request
+"@
+
+    if ($content -notmatch "## Manual Approval") {
+        $content += $approvalNote
+    }
+
+    # Move to completed
+    if (-not (Test-Path $completedDir)) {
+        New-Item -ItemType Directory -Path $completedDir -Force | Out-Null
+    }
+
+    $fileName = Split-Path -Leaf $TaskPath
+    $destPath = Join-Path $completedDir $fileName
+
+    Set-Content -Path $TaskPath -Value $content -Encoding UTF8
+    Move-Item -Path $TaskPath -Destination $destPath -Force
+
+    return $true
+}
+
+# Set task to approve on next review (set max_iterations = current iteration)
+function Stop-TaskIteration {
+    param([string]$TaskPath)
+
+    if (-not (Test-Path $TaskPath)) {
+        return $false
+    }
+
+    $content = Get-Content $TaskPath -Raw
+    $currentIteration = 1
+
+    if ($content -match "iteration:\s*(\d+)") {
+        $currentIteration = [int]$Matches[1]
+    }
+
+    # Set max_iterations to current iteration so it will be approved on next review
+    if ($content -match "max_iterations:\s*\d+") {
+        $content = $content -replace "max_iterations:\s*\d+", "max_iterations: $currentIteration"
+    } else {
+        # Add max_iterations field after iteration field
+        $content = $content -replace "(iteration:\s*\d+)", "`$1`nmax_iterations: $currentIteration"
+    }
+
+    Set-Content -Path $TaskPath -Value $content -Encoding UTF8
+    return $true
+}
+
 # Update tray icon tooltip
 function Update-TrayTooltip {
     $projects = Get-Projects
@@ -216,6 +335,92 @@ function Build-ContextMenu {
                 Show-Notification -Title "AutoClaude" -Message "Project $projectName monitoring $(if ($p.enabled) { 'resumed' } else { 'paused' })"
             }.GetNewClosure())
             $subMenu.DropDownItems.Add($toggleItem) | Out-Null
+
+            # Manage Tasks submenu
+            $tasksMenu = New-Object System.Windows.Forms.ToolStripMenuItem
+            $tasksMenu.Text = "Manage Tasks"
+
+            $tasks = Get-ProjectTasks -ProjectPath $projectPath
+
+            if ($tasks.Count -eq 0) {
+                $noTaskItem = New-Object System.Windows.Forms.ToolStripMenuItem
+                $noTaskItem.Text = "(No active tasks)"
+                $noTaskItem.Enabled = $false
+                $tasksMenu.DropDownItems.Add($noTaskItem) | Out-Null
+            } else {
+                foreach ($task in $tasks) {
+                    $taskMenu = New-Object System.Windows.Forms.ToolStripMenuItem
+                    $maxIterLabel = if ($task.maxIterations -eq 0) { "∞" } else { $task.maxIterations }
+                    $taskMenu.Text = "$($task.id) [$($task.status)] (iter: $($task.iteration)/$maxIterLabel)"
+
+                    $taskPath = $task.path
+                    $taskId = $task.id
+                    $taskLocation = $task.location
+
+                    # View task file
+                    $viewTaskItem = New-Object System.Windows.Forms.ToolStripMenuItem
+                    $viewTaskItem.Text = "View Task File"
+                    $viewTaskItem.Add_Click({
+                        Start-Process "notepad.exe" -ArgumentList $taskPath
+                    }.GetNewClosure())
+                    $taskMenu.DropDownItems.Add($viewTaskItem) | Out-Null
+
+                    # View task log
+                    $viewLogItem = New-Object System.Windows.Forms.ToolStripMenuItem
+                    $viewLogItem.Text = "View Task Log"
+                    $viewLogItem.Add_Click({
+                        $logFile = Join-Path $projectPath "collaboration\.autoclaude\logs\tasks\$taskId.log"
+                        if (Test-Path $logFile) {
+                            Start-Process "notepad.exe" -ArgumentList $logFile
+                        } else {
+                            Show-Notification -Title "AutoClaude" -Message "No log file for this task yet" -Icon Warning
+                        }
+                    }.GetNewClosure())
+                    $taskMenu.DropDownItems.Add($viewLogItem) | Out-Null
+
+                    $taskMenu.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
+
+                    # Stop iterations (approve on next review)
+                    $stopIterItem = New-Object System.Windows.Forms.ToolStripMenuItem
+                    $stopIterItem.Text = "Stop After Current Review"
+                    $stopIterItem.Add_Click({
+                        if (Stop-TaskIteration -TaskPath $taskPath) {
+                            Show-Notification -Title "AutoClaude" -Message "Task '$taskId' will be approved after current review"
+                            Write-TrayLog "Stopped iteration for task: $taskId"
+                        } else {
+                            Show-Notification -Title "AutoClaude" -Message "Failed to update task" -Icon Error
+                        }
+                    }.GetNewClosure())
+                    $taskMenu.DropDownItems.Add($stopIterItem) | Out-Null
+
+                    # Approve now
+                    $approveItem = New-Object System.Windows.Forms.ToolStripMenuItem
+                    $approveItem.Text = "Approve Now (Skip Review)"
+                    $approveItem.Add_Click({
+                        $result = [System.Windows.Forms.MessageBox]::Show(
+                            "Are you sure you want to approve this task immediately?`n`nTask: $taskId`n`nThis will skip any remaining reviews and mark the task as completed.",
+                            "Confirm Approval",
+                            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                            [System.Windows.Forms.MessageBoxIcon]::Question
+                        )
+                        if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
+                            if (Approve-Task -TaskPath $taskPath -ProjectPath $projectPath) {
+                                Show-Notification -Title "AutoClaude" -Message "Task '$taskId' approved and moved to completed"
+                                Write-TrayLog "Manually approved task: $taskId"
+                            } else {
+                                Show-Notification -Title "AutoClaude" -Message "Failed to approve task" -Icon Error
+                            }
+                        }
+                    }.GetNewClosure())
+                    $taskMenu.DropDownItems.Add($approveItem) | Out-Null
+
+                    $tasksMenu.DropDownItems.Add($taskMenu) | Out-Null
+                }
+            }
+
+            $subMenu.DropDownItems.Add($tasksMenu) | Out-Null
+
+            $subMenu.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
             # Remove project
             $removeItem = New-Object System.Windows.Forms.ToolStripMenuItem
