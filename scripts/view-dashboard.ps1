@@ -7,6 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Windows.Forms
 
 # Get absolute path
 $Path = [System.IO.Path]::GetFullPath($Path)
@@ -27,23 +28,24 @@ if (-not (Test-Path $CollabDir)) {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $GenerateScript = Join-Path $ScriptDir "generate-dashboard.ps1"
 
+$DashboardPath = Join-Path $CollabDir "dashboard.html"
+
 if (Test-Path $GenerateScript) {
     try {
-        & powershell -ExecutionPolicy Bypass -File $GenerateScript -ProjectPath $Path 2>&1 | Out-Null
+        # Run synchronously and wait for completion
+        $result = & powershell -ExecutionPolicy Bypass -File $GenerateScript -ProjectPath $Path 2>&1
+        Write-Host $result
     } catch {
-        # Ignore errors, dashboard may still exist
+        Write-Host "Warning: Could not generate dashboard: $_"
     }
 }
 
 # Open dashboard in default browser
-$DashboardPath = Join-Path $CollabDir "dashboard.html"
-
 if (Test-Path $DashboardPath) {
     Start-Process $DashboardPath
 } else {
-    Add-Type -AssemblyName System.Windows.Forms
     [System.Windows.Forms.MessageBox]::Show(
-        "Dashboard file not found.`n`nPlease wait for the watcher to generate it, or check if the project is properly initialized.",
+        "Dashboard generation failed.`n`nError details may be in the console output.",
         "AutoClaude",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Warning

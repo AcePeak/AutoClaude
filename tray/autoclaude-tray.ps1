@@ -459,12 +459,22 @@ function Build-ContextMenu {
                 # Regenerate dashboard first
                 $genScript = Join-Path $ScriptsDir "generate-dashboard.ps1"
                 if (Test-Path $genScript) {
-                    Start-Process "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$genScript`" -ProjectPath `"$projectPath`"" -Wait -WindowStyle Hidden
+                    try {
+                        $psi = New-Object System.Diagnostics.ProcessStartInfo
+                        $psi.FileName = "powershell.exe"
+                        $psi.Arguments = "-ExecutionPolicy Bypass -NoProfile -File `"$genScript`" -ProjectPath `"$projectPath`""
+                        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+                        $psi.CreateNoWindow = $true
+                        $proc = [System.Diagnostics.Process]::Start($psi)
+                        $proc.WaitForExit(10000)
+                    } catch {
+                        Write-TrayLog "Failed to generate dashboard: $_"
+                    }
                 }
                 if (Test-Path $dashboardPath) {
                     Start-Process $dashboardPath
                 } else {
-                    Show-Notification -Title "AutoClaude" -Message "Dashboard not found. Try initializing the project first." -Icon Warning
+                    Show-Notification -Title "AutoClaude" -Message "Dashboard generation failed. Check logs." -Icon Warning
                 }
             }.GetNewClosure())
             $subMenu.DropDownItems.Add($openDashboardItem) | Out-Null
@@ -626,6 +636,16 @@ function Build-ContextMenu {
     }
     $menu.Items.Add($watcherItem) | Out-Null
 
+    # EMERGENCY STOP ALL
+    $stopAllItem = New-Object System.Windows.Forms.ToolStripMenuItem
+    $stopAllItem.Text = "!! STOP ALL CLAUDE !!"
+    $stopAllItem.ForeColor = [System.Drawing.Color]::Red
+    $stopAllItem.Font = New-Object System.Drawing.Font($stopAllItem.Font, [System.Drawing.FontStyle]::Bold)
+    $stopAllItem.Add_Click({
+        Stop-AllClaude
+    })
+    $menu.Items.Add($stopAllItem) | Out-Null
+
     # View logs submenu
     $logMenu = New-Object System.Windows.Forms.ToolStripMenuItem
     $logMenu.Text = "View Logs"
@@ -765,6 +785,58 @@ function Stop-Watcher {
         $global:WatcherProcess = $null
         Write-TrayLog "Watcher stopped"
     }
+}
+
+# EMERGENCY: Stop all Claude processes and clean up locks
+function Stop-AllClaude {
+    Write-TrayLog "EMERGENCY STOP: Killing all Claude processes..."
+
+    # Stop watcher first
+    Stop-Watcher
+
+    # Kill all claude.exe processes
+    $claudeProcesses = Get-Process -Name "claude" -ErrorAction SilentlyContinue
+    $killedCount = 0
+    foreach ($proc in $claudeProcesses) {
+        try {
+            $proc.Kill()
+            $killedCount++
+            Write-TrayLog "Killed claude.exe PID: $($proc.Id)"
+        } catch {
+            Write-TrayLog "Failed to kill PID $($proc.Id): $_"
+        }
+    }
+
+    # Also kill any PowerShell processes running executor/supervisor scripts
+    $psProcesses = Get-Process -Name "powershell" -ErrorAction SilentlyContinue
+    foreach ($proc in $psProcesses) {
+        try {
+            $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($proc.Id)").CommandLine
+            if ($cmdLine -match "executor\.ps1|supervisor\.ps1|watcher\.ps1") {
+                $proc.Kill()
+                $killedCount++
+                Write-TrayLog "Killed PowerShell PID: $($proc.Id)"
+            }
+        } catch {}
+    }
+
+    # Clean up all lock files
+    $projects = Get-Projects
+    foreach ($project in $projects) {
+        $lockDir = Join-Path $project.path "collaboration\.autoclaude\lock"
+        if (Test-Path $lockDir) {
+            $lockFiles = Get-ChildItem -Path $lockDir -Filter "*.lock" -ErrorAction SilentlyContinue
+            foreach ($lockFile in $lockFiles) {
+                try {
+                    Remove-Item $lockFile.FullName -Force
+                    Write-TrayLog "Removed lock: $($lockFile.Name)"
+                } catch {}
+            }
+        }
+    }
+
+    Show-Notification -Title "AutoClaude" -Message "Stopped $killedCount processes and cleaned up locks" -Icon Warning
+    Write-TrayLog "EMERGENCY STOP complete: $killedCount processes killed"
 }
 
 # Create tray icon
