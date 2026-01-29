@@ -19,17 +19,27 @@ class TrayManager extends EventEmitter {
    */
   getIconPath() {
     const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+
+    // Check multiple possible locations
     const locations = [
+      // Production: extraResources location
+      path.join(process.resourcesPath || '', 'assets', iconName),
+      // Development: project root
       path.join(__dirname, '..', 'assets', iconName),
-      path.join(__dirname, 'assets', iconName),
-      path.join(process.resourcesPath || '', 'assets', iconName)
+      // Alternative development path
+      path.join(process.cwd(), 'assets', iconName),
+      // Inside src folder (fallback)
+      path.join(__dirname, 'assets', iconName)
     ];
 
     for (const loc of locations) {
       if (fs.existsSync(loc)) {
+        console.log('Found icon at:', loc);
         return loc;
       }
     }
+
+    console.log('Icon not found in any location:', locations);
     return null;
   }
 
