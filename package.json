@@ -18,7 +18,10 @@
     "init": "node src/cli/init.js",
     "cli": "node src/cli/index.js"
   },
-  "author": "AcePeak",
+  "author": {
+    "name": "AcePeak",
+    "email": "acepeak@example.com"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -58,7 +61,7 @@
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "assets/icon.icns",
+      "icon": "assets/icon.png",
       "category": "public.app-category.developer-tools"
     },
     "linux": {
