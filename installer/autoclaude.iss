@@ -46,9 +46,9 @@ Source: "..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs
 Source: "assets\autoclaude.ico"; DestDir: "{app}\installer\assets"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tray\autoclaude-tray.ps1"" -Hidden"; IconFilename: "{app}\installer\assets\autoclaude.ico"
+Name: "{group}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\tray\start-hidden.vbs"""; IconFilename: "{app}\installer\assets\autoclaude.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tray\autoclaude-tray.ps1"" -Hidden"; IconFilename: "{app}\installer\assets\autoclaude.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\tray\start-hidden.vbs"""; IconFilename: "{app}\installer\assets\autoclaude.ico"; Tasks: desktopicon
 
 [Registry]
 ; Context menu - Directory background
@@ -70,10 +70,10 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeOpen"; ValueType
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeOpen\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\open-claude.ps1"" -Path ""%1"""; Tasks: contextmenu
 
 ; Auto-start at login
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AutoClaude"; ValueData: "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tray\autoclaude-tray.ps1"" -Hidden"; Tasks: startupicon; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AutoClaude"; ValueData: "wscript.exe ""{app}\tray\start-hidden.vbs"""; Tasks: startupicon; Flags: uninsdeletevalue
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tray\autoclaude-tray.ps1"" -Hidden"; Description: "Start AutoClaude"; Flags: nowait postinstall skipifsilent
+Filename: "wscript.exe"; Parameters: """{app}\tray\start-hidden.vbs"""; Description: "Start AutoClaude"; Flags: nowait postinstall skipifsilent
 Filename: "https://paypal.me/AceLiatus"; Description: "Support the project - Donate via PayPal"; Flags: postinstall skipifsilent shellexec unchecked
 
 [UninstallRun]
