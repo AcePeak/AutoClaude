@@ -251,7 +251,7 @@ class TrayManager extends EventEmitter {
             {
               label: "Today's Executor Log",
               click: () => {
-                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const today = new Date().toISOString().split('T')[0];
                 const logFile = path.join(projectLogDir, `executor_${today}.log`);
                 if (fs.existsSync(logFile)) {
                   this.openFile(logFile);
@@ -263,7 +263,7 @@ class TrayManager extends EventEmitter {
             {
               label: "Today's Supervisor Log",
               click: () => {
-                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const today = new Date().toISOString().split('T')[0];
                 const logFile = path.join(projectLogDir, `supervisor_${today}.log`);
                 if (fs.existsSync(logFile)) {
                   this.openFile(logFile);
@@ -468,6 +468,8 @@ class TrayManager extends EventEmitter {
    * Open Claude CLI in project directory
    */
   openClaude(projectPath) {
+    const { execSync } = require('child_process');
+
     if (process.platform === 'win32') {
       // Windows: Open cmd with claude command using shell
       const cmdPath = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
@@ -477,35 +479,54 @@ class TrayManager extends EventEmitter {
       }, (err) => {
         if (err) {
           console.error('Error opening Claude:', err);
+          this.showNotification('AutoClaude', 'Failed to open Claude terminal');
         }
       });
     } else if (process.platform === 'darwin') {
       // macOS: Open Terminal with claude command
+      // Escape single quotes in path
+      const escapedPath = projectPath.replace(/'/g, "'\\''");
       const script = `tell application "Terminal"
-        do script "cd '${projectPath}' && claude"
+        do script "cd '${escapedPath}' && claude"
         activate
       end tell`;
-      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+      const child = spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+      child.unref();
     } else {
       // Linux: Try common terminal emulators
-      const terminals = ['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm'];
-      for (const term of terminals) {
+      const terminals = [
+        { cmd: 'gnome-terminal', args: (p) => ['--', 'bash', '-c', `cd '${p}' && claude; exec bash`] },
+        { cmd: 'konsole', args: (p) => ['-e', 'bash', '-c', `cd '${p}' && claude; exec bash`] },
+        { cmd: 'xfce4-terminal', args: (p) => ['-e', `bash -c "cd '${p}' && claude; exec bash"`] },
+        { cmd: 'mate-terminal', args: (p) => ['-e', `bash -c "cd '${p}' && claude; exec bash"`] },
+        { cmd: 'tilix', args: (p) => ['-e', `bash -c "cd '${p}' && claude; exec bash"`] },
+        { cmd: 'xterm', args: (p) => ['-e', `bash -c "cd '${p}' && claude; exec bash"`] }
+      ];
+
+      // Escape single quotes in path
+      const escapedPath = projectPath.replace(/'/g, "'\\''");
+
+      // Find available terminal using 'which' command
+      let terminalFound = false;
+      for (const { cmd, args } of terminals) {
         try {
-          if (term === 'gnome-terminal') {
-            spawn(term, ['--', 'bash', '-c', `cd '${projectPath}' && claude; exec bash`], {
-              detached: true,
-              stdio: 'ignore'
-            });
-          } else {
-            spawn(term, ['-e', `bash -c "cd '${projectPath}' && claude; exec bash"`], {
-              detached: true,
-              stdio: 'ignore'
-            });
-          }
+          execSync(`which ${cmd}`, { stdio: 'ignore' });
+          // Terminal exists, use it
+          const child = spawn(cmd, args(escapedPath), {
+            detached: true,
+            stdio: 'ignore'
+          });
+          child.unref();
+          terminalFound = true;
           break;
-        } catch (err) {
+        } catch (e) {
+          // Terminal not found, try next
           continue;
         }
+      }
+
+      if (!terminalFound) {
+        this.showNotification('AutoClaude', 'No supported terminal found. Install gnome-terminal, konsole, or xterm.');
       }
     }
   }

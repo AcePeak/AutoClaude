@@ -128,7 +128,7 @@
   </style>
 </head>
 <body>
-  <h2>AutoClaude Settings</h2>
+  <h2>AutoClaude Settings <span id="version" style="font-size: 12px; color: #888; font-weight: normal;"></span></h2>
 
   <h3>General</h3>
 
@@ -178,7 +178,9 @@
       const settings = await ipcRenderer.invoke('get-settings');
       const cpuCount = await ipcRenderer.invoke('get-cpu-count');
       const platform = await ipcRenderer.invoke('get-platform');
+      const version = await ipcRenderer.invoke('get-version');
 
+      document.getElementById('version').textContent = 'v' + version;
       document.getElementById('maxExecutors').value = settings.max_executors || 2;
       document.getElementById('checkInterval').value = settings.check_interval_seconds || 60;
       document.getElementById('autoStart').checked = settings.auto_start || false;

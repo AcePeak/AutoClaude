@@ -1,11 +1,25 @@
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, fork } = require('child_process');
 const { getCollabDir, getConfigDir, getLockDir, ensureDir } = require('../utils/paths');
 const { getEnabledProjects, loadSettings } = require('../utils/projects');
 const Logger = require('../utils/logger');
 
 const logger = new Logger('watcher');
+
+/**
+ * Get the correct Node.js executable path
+ * In packaged Electron app, we need to use the bundled Node
+ */
+function getNodePath() {
+  // Check if we're in a packaged Electron app
+  if (process.versions && process.versions.electron) {
+    // In Electron, we can use fork() which uses process.execPath internally
+    // Or we can use the electron executable with --no-sandbox
+    return null; // Signal to use fork() instead of spawn('node', ...)
+  }
+  return 'node';
+}
 
 class Watcher {
   constructor() {
@@ -19,14 +33,21 @@ class Watcher {
    * Check if a project needs supervisor or executor
    */
   checkProject(projectPath) {
-    const collabDir = getCollabDir(projectPath);
     const result = {
       needsSupervisor: false,
       needsExecutor: false,
       orphanedTasks: [],
-      reason: ''
+      reason: '',
+      error: null
     };
 
+    // Validate project path exists
+    if (!fs.existsSync(projectPath)) {
+      result.error = 'Project directory does not exist';
+      return result;
+    }
+
+    const collabDir = getCollabDir(projectPath);
     if (!fs.existsSync(collabDir)) {
       return result;
     }
@@ -152,14 +173,24 @@ class Watcher {
     logger.info(`Triggering Supervisor: ${projectPath}`);
 
     const supervisorPath = path.join(__dirname, 'supervisor.js');
-    const child = spawn('node', [supervisorPath, projectPath], {
-      detached: true,
-      stdio: 'ignore'
-    });
-    child.unref();
 
-    this.supervisorProcesses.set(projectPath, child.pid);
-    return true;
+    try {
+      // Use fork() which works in both Node.js and Electron
+      const child = fork(supervisorPath, [projectPath], {
+        detached: true,
+        stdio: 'ignore',
+        // Ensure child runs independently
+        env: { ...process.env }
+      });
+      child.unref();
+
+      this.supervisorProcesses.set(projectPath, child.pid);
+      logger.info(`Supervisor started with PID: ${child.pid}`);
+      return true;
+    } catch (err) {
+      logger.error(`Failed to start Supervisor: ${err.message}`);
+      return false;
+    }
   }
 
   /**
@@ -172,19 +203,27 @@ class Watcher {
     logger.info(logMsg);
 
     const executorPath = path.join(__dirname, 'executor.js');
-    const args = [executorPath, projectPath];
+    const args = [projectPath];
     if (resumeTask) {
       args.push('--resume', resumeTask);
     }
 
-    const child = spawn('node', args, {
-      detached: true,
-      stdio: 'ignore'
-    });
-    child.unref();
+    try {
+      // Use fork() which works in both Node.js and Electron
+      const child = fork(executorPath, args, {
+        detached: true,
+        stdio: 'ignore',
+        env: { ...process.env }
+      });
+      child.unref();
 
-    this.executorProcesses.set(projectPath, child.pid);
-    return true;
+      this.executorProcesses.set(projectPath, child.pid);
+      logger.info(`Executor started with PID: ${child.pid}`);
+      return true;
+    } catch (err) {
+      logger.error(`Failed to start Executor: ${err.message}`);
+      return false;
+    }
   }
 
   /**
@@ -212,13 +251,20 @@ class Watcher {
     }
 
     for (const project of projects) {
+      const projectName = project.name || path.basename(project.path);
+
       if (!fs.existsSync(project.path)) {
-        logger.warn(`Project directory not found: ${project.path}`);
+        logger.warn(`[${projectName}] Project directory not found: ${project.path}`);
         continue;
       }
 
-      const projectName = path.basename(project.path);
       const checkResult = this.checkProject(project.path);
+
+      // Handle check errors
+      if (checkResult.error) {
+        logger.error(`[${projectName}] Check failed: ${checkResult.error}`);
+        continue;
+      }
 
       if (checkResult.needsSupervisor || checkResult.needsExecutor) {
         logger.info(`[${projectName}] ${checkResult.reason}`);

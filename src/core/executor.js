@@ -26,34 +26,63 @@ class Executor {
   acquireLock(taskId) {
     const lockFile = path.join(this.lockDir, `${taskId}.lock`);
 
+    // Maximum lock age before considering it stale (1 hour)
+    const MAX_LOCK_AGE = 60 * 60 * 1000;
+
     try {
       // Try to create lock file exclusively
       const fd = fs.openSync(lockFile, 'wx');
       const lockData = {
         pid: process.pid,
         startTime: new Date().toISOString(),
-        taskId
+        taskId,
+        hostname: require('os').hostname()
       };
       fs.writeSync(fd, JSON.stringify(lockData, null, 2));
       fs.closeSync(fd);
 
       this.lockFile = lockFile;
       this.currentTaskId = taskId;
+      logger.info(`Acquired lock for task ${taskId}`);
       return true;
     } catch (err) {
       if (err.code === 'EEXIST') {
-        // Lock already exists - check if process is alive
+        // Lock already exists - check if it's valid
         try {
           const lockData = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-          process.kill(lockData.pid, 0);
-          // Process is alive, lock is valid
-          return false;
+
+          // Check if lock is too old (stale)
+          const lockAge = Date.now() - new Date(lockData.startTime).getTime();
+          if (lockAge > MAX_LOCK_AGE) {
+            logger.warn(`Removing stale lock for task ${taskId} (age: ${Math.round(lockAge / 60000)} minutes)`);
+            fs.unlinkSync(lockFile);
+            return this.acquireLock(taskId);
+          }
+
+          // Check if process is still alive
+          try {
+            process.kill(lockData.pid, 0);
+            // Process is alive, lock is valid
+            logger.info(`Task ${taskId} is locked by PID ${lockData.pid}`);
+            return false;
+          } catch (e) {
+            // Process is dead, remove stale lock
+            logger.warn(`Removing stale lock for task ${taskId} (PID ${lockData.pid} not running)`);
+            fs.unlinkSync(lockFile);
+            return this.acquireLock(taskId);
+          }
         } catch (e) {
-          // Process is dead, remove stale lock
-          fs.unlinkSync(lockFile);
-          return this.acquireLock(taskId);
+          // Invalid lock file, try to remove it
+          try {
+            fs.unlinkSync(lockFile);
+            return this.acquireLock(taskId);
+          } catch (unlinkErr) {
+            logger.error(`Failed to remove invalid lock file: ${unlinkErr.message}`);
+            return false;
+          }
         }
       }
+      logger.error(`Failed to acquire lock for task ${taskId}: ${err.message}`);
       return false;
     }
   }
@@ -182,6 +211,9 @@ Start working on the task now.`;
 
     logger.info(`Executing task ${taskId}`);
 
+    // Timeout: 30 minutes max per task
+    const TASK_TIMEOUT = 30 * 60 * 1000;
+
     return new Promise((resolve) => {
       const args = ['-p', prompt, '--dangerously-skip-permissions'];
 
@@ -200,11 +232,29 @@ Start working on the task now.`;
 
       const claude = spawn('claude', args, {
         cwd: this.projectPath,
-        shell: true
+        shell: true,
+        env: { ...process.env }
       });
 
       let output = '';
+      let timedOut = false;
       const logStream = fs.createWriteStream(logFile);
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        logger.warn(`Task ${taskId} timed out after ${TASK_TIMEOUT / 60000} minutes`);
+        logStream.write('\n\n[TIMEOUT] Task exceeded maximum execution time\n');
+        claude.kill('SIGTERM');
+        // Force kill after 10 seconds if still running
+        setTimeout(() => {
+          try {
+            claude.kill('SIGKILL');
+          } catch (e) {
+            // Process may already be dead
+          }
+        }, 10000);
+      }, TASK_TIMEOUT);
 
       claude.stdout.on('data', (data) => {
         output += data.toString();
@@ -216,19 +266,23 @@ Start working on the task now.`;
       });
 
       claude.on('close', (code) => {
+        clearTimeout(timeoutId);
         logStream.end();
 
-        const success = code === 0;
-        const summary = output.slice(-500); // Last 500 chars as summary
+        const success = !timedOut && code === 0;
+        const summary = timedOut
+          ? 'Task timed out - may need manual review'
+          : output.slice(-500); // Last 500 chars as summary
 
         this.markForReview(taskPath, success, summary);
         this.releaseLock();
 
-        logger.info(`Task ${taskId} completed with code ${code}`);
-        resolve({ success, code, output });
+        logger.info(`Task ${taskId} completed with code ${code}${timedOut ? ' (timed out)' : ''}`);
+        resolve({ success, code, output, timedOut });
       });
 
       claude.on('error', (err) => {
+        clearTimeout(timeoutId);
         logStream.end();
         logger.error(`Task ${taskId} failed: ${err.message}`);
         this.markForReview(taskPath, false, err.message);

@@ -131,6 +131,10 @@ ipcMain.handle('get-platform', () => {
   return process.platform;
 });
 
+ipcMain.handle('get-version', () => {
+  return app.getVersion();
+});
+
 // IPC handler for Windows context menu registration
 ipcMain.handle('register-context-menu', async () => {
   if (process.platform !== 'win32') {

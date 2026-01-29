@@ -160,14 +160,30 @@ Create the task files now. Each task should be independently executable.`;
 
     logger.info('Processing inbox requirements');
 
+    // Timeout: 15 minutes max for inbox processing
+    const INBOX_TIMEOUT = 15 * 60 * 1000;
+
     return new Promise((resolve) => {
       const claude = spawn('claude', ['-p', prompt, '--dangerously-skip-permissions'], {
         cwd: this.projectPath,
-        shell: true
+        shell: true,
+        env: { ...process.env }
       });
 
       const logStream = fs.createWriteStream(logFile);
       let output = '';
+      let timedOut = false;
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        logger.warn('Inbox processing timed out');
+        logStream.write('\n\n[TIMEOUT] Inbox processing exceeded maximum time\n');
+        claude.kill('SIGTERM');
+        setTimeout(() => {
+          try { claude.kill('SIGKILL'); } catch (e) {}
+        }, 10000);
+      }, INBOX_TIMEOUT);
 
       claude.stdout.on('data', (data) => {
         output += data.toString();
@@ -179,13 +195,17 @@ Create the task files now. Each task should be independently executable.`;
       });
 
       claude.on('close', (code) => {
+        clearTimeout(timeoutId);
         logStream.end();
-        this.clearInbox();
-        logger.info(`Inbox processing completed with code ${code}`);
-        resolve({ success: code === 0, output });
+        if (!timedOut) {
+          this.clearInbox();
+        }
+        logger.info(`Inbox processing completed with code ${code}${timedOut ? ' (timed out)' : ''}`);
+        resolve({ success: !timedOut && code === 0, output, timedOut });
       });
 
       claude.on('error', (err) => {
+        clearTimeout(timeoutId);
         logStream.end();
         logger.error(`Inbox processing failed: ${err.message}`);
         resolve({ success: false, error: err.message });
@@ -227,14 +247,30 @@ If rejecting, explain what needs to be fixed before the decision.`;
 
     logger.info(`Reviewing task ${task.taskId}`);
 
+    // Timeout: 10 minutes max for review
+    const REVIEW_TIMEOUT = 10 * 60 * 1000;
+
     return new Promise((resolve) => {
       const claude = spawn('claude', ['-p', prompt, '--dangerously-skip-permissions'], {
         cwd: this.projectPath,
-        shell: true
+        shell: true,
+        env: { ...process.env }
       });
 
       const logStream = fs.createWriteStream(logFile);
       let output = '';
+      let timedOut = false;
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        logger.warn(`Review of task ${task.taskId} timed out`);
+        logStream.write('\n\n[TIMEOUT] Review exceeded maximum time\n');
+        claude.kill('SIGTERM');
+        setTimeout(() => {
+          try { claude.kill('SIGKILL'); } catch (e) {}
+        }, 10000);
+      }, REVIEW_TIMEOUT);
 
       claude.stdout.on('data', (data) => {
         output += data.toString();
@@ -246,17 +282,19 @@ If rejecting, explain what needs to be fixed before the decision.`;
       });
 
       claude.on('close', (code) => {
+        clearTimeout(timeoutId);
         logStream.end();
 
-        // Parse decision from output
-        const approved = /APPROVE/i.test(output) && !/REJECT/i.test(output.slice(-100));
+        // Parse decision from output (default to reject if timed out)
+        const approved = !timedOut && /APPROVE/i.test(output) && !/REJECT/i.test(output.slice(-100));
 
         this.moveTask(task.taskPath, task.taskId, approved);
-        logger.info(`Task ${task.taskId} ${approved ? 'approved' : 'rejected'}`);
-        resolve({ success: code === 0, approved, output });
+        logger.info(`Task ${task.taskId} ${approved ? 'approved' : 'rejected'}${timedOut ? ' (review timed out)' : ''}`);
+        resolve({ success: !timedOut && code === 0, approved, output, timedOut });
       });
 
       claude.on('error', (err) => {
+        clearTimeout(timeoutId);
         logStream.end();
         logger.error(`Review failed: ${err.message}`);
         resolve({ success: false, error: err.message });
