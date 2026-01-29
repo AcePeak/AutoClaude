@@ -11,15 +11,18 @@
   "log_retention_days": 7,
   "supervisor": {
     "enabled": true,
-    "prompt_template": "你是一个Supervisor，请根据 SUPERVISOR_GUIDE.md 执行任务管理工作。当前目录: {project_path}"
+    "max_iterations": 3,
+    "review_strictness": "high",
+    "prompt_template": "You are a Supervisor. Execute task management according to SUPERVISOR_GUIDE.md. Project: {project_path}"
   },
   "executor": {
     "enabled": true,
-    "prompt_template": "你是一个Executor，请根据 EXECUTOR_GUIDE.md 执行任务。当前目录: {project_path}"
+    "prompt_template": "You are an Executor. Execute tasks according to EXECUTOR_GUIDE.md. Project: {project_path}"
   },
   "watcher": {
     "check_inbox": true,
     "check_queue": true,
-    "check_executing": true
+    "check_executing": true,
+    "check_orphaned": true
   }
 }

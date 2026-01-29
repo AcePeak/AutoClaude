@@ -73,13 +73,51 @@ Brief description of execution process and key decisions...
 None / Or describe issues and solutions
 ```
 
+## Iterative Review Process
+
+**IMPORTANT:** Tasks typically go through multiple iterations before approval.
+
+### How It Works
+1. You complete the task and submit for review (status: REVIEW)
+2. Supervisor reviews critically and likely rejects with feedback (status: REJECTED → PENDING)
+3. You pick up the task again and address the feedback
+4. This repeats 2-3 times until approved
+
+### Handling Rejected Tasks
+When you pick up a task that was previously rejected:
+1. **Read the Review History section** - understand what needs improvement
+2. **Check the iteration count** - you'll see `iteration: 2` or `iteration: 3`
+3. **Address feedback items:**
+   - "Must Fix" items are blocking - must be addressed
+   - "Should Fix" items are important - try to address
+   - "Nice to Have" items are optional
+4. **Update execution feedback** - describe what you changed in response to feedback
+
+### Task File Changes for Iterations
+The task file will have:
+```yaml
+iteration: 2          # Current iteration number
+max_iterations: 3     # Maximum iterations before final decision
+```
+
+And a Review History section showing previous feedback:
+```markdown
+## Review History
+### Review #1 (Persona: The Perfectionist)
+**Result:** REJECTED
+**Feedback:**
+- [ ] Must fix: Add error handling for empty input
+- [ ] Should fix: Improve variable naming
+```
+
 ## Working Principles
 
 1. **Focus on execution**: Only do what the task requires, don't add extra features
 2. **Strictly follow acceptance criteria**: Ensure each criterion is met
-3. **Detailed logging**: Execution process should be traceable
-4. **Don't overstep**: Don't modify task descriptions or acceptance criteria
-5. **Release promptly**: Release lock immediately after completing or abandoning task
+3. **Address reviewer feedback**: When re-executing, prioritize fixing noted issues
+4. **Detailed logging**: Execution process should be traceable
+5. **Don't overstep**: Don't modify task descriptions or acceptance criteria
+6. **Release promptly**: Release lock immediately after completing or abandoning task
 
 ## Current Checklist
 

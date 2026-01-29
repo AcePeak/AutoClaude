@@ -108,44 +108,100 @@ $statusInfo += "`n"
 
 # Check executing
 $executingTasks = @()
+$tasksForReview = @()
 if (Test-Path $executingDir) {
     $executingFiles = Get-ChildItem -Path $executingDir -Filter "*.md" -ErrorAction SilentlyContinue
     foreach ($file in $executingFiles) {
         $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
         $status = "UNKNOWN"
+        $iteration = 1
+        $maxIterations = 3
+
         if ($content -match "status:\s*(\w+)") {
             $status = $Matches[1]
         }
-        $executingTasks += @{
+        if ($content -match "iteration:\s*(\d+)") {
+            $iteration = [int]$Matches[1]
+        }
+        if ($content -match "max_iterations:\s*(\d+)") {
+            $maxIterations = [int]$Matches[1]
+        }
+
+        $taskInfo = @{
             name = $file.Name
             status = $status
             path = $file.FullName
+            iteration = $iteration
+            maxIterations = $maxIterations
+        }
+        $executingTasks += $taskInfo
+
+        if ($status -eq "REVIEW") {
+            $tasksForReview += $taskInfo
         }
     }
 }
 $statusInfo += "### Executing Tasks ($($executingTasks.Count))`n"
 foreach ($task in $executingTasks) {
-    $statusInfo += "- $($task.name) [Status: $($task.status)]`n"
+    $statusInfo += "- $($task.name) [Status: $($task.status), Iteration: $($task.iteration)/$($task.maxIterations)]`n"
 }
+
+# Select a random review persona
+$reviewPersonas = @(
+    "The Perfectionist - Focus on code elegance, edge cases, error handling",
+    "The Beginner User - Focus on intuitiveness, helpful messages, clear docs",
+    "The Power User - Focus on efficiency, scalability, advanced features",
+    "The Security Auditor - Focus on security issues, input validation, data handling",
+    "The Maintainer - Focus on code structure, maintainability, code smells"
+)
+$selectedPersona = $reviewPersonas | Get-Random
 
 # Build complete prompt
 $prompt = @"
-You are the Supervisor in the AutoClaude system.
+You are the Supervisor in the AutoClaude system - a CRITICAL and DEMANDING reviewer.
 
-Please read collaboration/SUPERVISOR_GUIDE.md to understand your responsibilities.
+**IMPORTANT: You represent picky users who want high-quality results. You should:**
+- Almost NEVER approve on the first review (iteration 1)
+- Find real issues and suggest concrete improvements
+- Push for quality through multiple iterations
+- Only approve when truly satisfied (usually iteration 3+)
+
+Please read collaboration/SUPERVISOR_GUIDE.md to understand your full responsibilities.
+
+## Your Review Persona for This Session
+**$selectedPersona**
+
+Review all tasks from this perspective. Be critical but constructive.
 
 $statusInfo
 
-Please execute your responsibilities based on the above status:
-1. If inbox has new content, convert it to task files in queue/ directory, then clear inbox (keep template header)
-2. If there are tasks with REVIEW status, perform review
-3. Update project status
+## Your Tasks
 
-Notes:
-- Use format for task files: task_<YYYYMMDD>_<HHMMSS>_<short_description>.md
-- Task files must include YAML front matter (id, status, priority, created, etc.)
-- Move approved tasks to completed/ directory
-- Move rejected tasks back to queue/ directory with feedback
+1. **If inbox has new content:** Convert to task files in queue/, then clear inbox (keep header)
+
+2. **If there are tasks with REVIEW status:** Perform CRITICAL review:
+   - Check the iteration count (shown above)
+   - If iteration 1: Find at least 2-3 improvements needed
+   - If iteration 2: Check if previous feedback was addressed, find remaining issues
+   - If iteration 3+: Can approve if major issues resolved
+
+   When REJECTING (most reviews):
+   - Increment the iteration field in YAML front matter
+   - Add detailed feedback under "## Review History" section
+   - List "Must Fix", "Should Fix", and "Nice to Have" items
+   - Move task back to queue/ directory
+   - Set status to PENDING
+
+   When APPROVING (rare, usually iteration 3+):
+   - Move task to completed/ directory
+   - Add final review notes
+
+3. **Update project_plan.md** if there are major changes
+
+## Task File Format Notes
+- Ensure YAML front matter includes: iteration, max_iterations fields
+- If iteration field missing, add it with value 1
+- Default max_iterations is 3
 "@
 
 # Check if there's anything to process
