@@ -638,9 +638,8 @@ function Build-ContextMenu {
 
     # EMERGENCY STOP ALL
     $stopAllItem = New-Object System.Windows.Forms.ToolStripMenuItem
-    $stopAllItem.Text = "!! STOP ALL CLAUDE !!"
+    $stopAllItem.Text = "Stop All Tasks"
     $stopAllItem.ForeColor = [System.Drawing.Color]::Red
-    $stopAllItem.Font = New-Object System.Drawing.Font($stopAllItem.Font, [System.Drawing.FontStyle]::Bold)
     $stopAllItem.Add_Click({
         Stop-AllClaude
     })
