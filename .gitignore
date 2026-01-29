@@ -4,7 +4,6 @@ dist-electron/
 
 # Node.js
 node_modules/
-package-lock.json
 
 # Logs
 *.log
