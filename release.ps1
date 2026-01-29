@@ -29,6 +29,20 @@ Write-Host ""
 # Check for gh CLI
 $ghPath = Get-Command "gh" -ErrorAction SilentlyContinue
 if (-not $ghPath) {
+    # Try common installation paths
+    $ghPaths = @(
+        "$env:ProgramFiles\GitHub CLI\gh.exe",
+        "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+        "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
+    )
+    foreach ($p in $ghPaths) {
+        if (Test-Path $p) {
+            $ghPath = $p
+            break
+        }
+    }
+}
+if (-not $ghPath) {
     Write-Host "[ERROR] GitHub CLI (gh) not found" -ForegroundColor Red
     Write-Host ""
     Write-Host "Please install GitHub CLI from:" -ForegroundColor Yellow
@@ -37,9 +51,10 @@ if (-not $ghPath) {
     Write-Host "Then authenticate with: gh auth login" -ForegroundColor Yellow
     exit 1
 }
+$gh = if ($ghPath -is [string]) { $ghPath } else { $ghPath.Source }
 
 # Check gh auth status
-$authStatus = gh auth status 2>&1
+$authStatus = & $gh auth status 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] Not authenticated with GitHub CLI" -ForegroundColor Red
     Write-Host ""
@@ -166,7 +181,7 @@ Write-Host "Creating GitHub release..." -ForegroundColor Cyan
 $releaseNotesFile = Join-Path $env:TEMP "release_notes_$newVersion.md"
 Set-Content $releaseNotesFile -Value $releaseNotes -Encoding UTF8
 
-gh release create $tagName $installerPath.FullName --title "AutoClaude $newVersion" --notes-file $releaseNotesFile
+& $gh release create $tagName $installerPath.FullName --title "AutoClaude $newVersion" --notes-file $releaseNotesFile
 
 if ($LASTEXITCODE -eq 0) {
     Remove-Item $releaseNotesFile -Force -ErrorAction SilentlyContinue
