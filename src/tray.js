@@ -1,7 +1,7 @@
 const { Tray, Menu, nativeImage, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const EventEmitter = require('events');
 const { loadProjects, getEnabledProjects, toggleProject, removeProject } = require('./utils/projects');
 const { getCollabDir, getAppDataDir } = require('./utils/paths');
@@ -469,11 +469,15 @@ class TrayManager extends EventEmitter {
    */
   openClaude(projectPath) {
     if (process.platform === 'win32') {
-      // Windows: Open cmd with claude command
-      spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', 'claude'], {
+      // Windows: Open cmd with claude command using shell
+      const cmdPath = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+      exec(`start "" "${cmdPath}" /k claude`, {
         cwd: projectPath,
-        detached: true,
-        stdio: 'ignore'
+        shell: true
+      }, (err) => {
+        if (err) {
+          console.error('Error opening Claude:', err);
+        }
       });
     } else if (process.platform === 'darwin') {
       // macOS: Open Terminal with claude command
