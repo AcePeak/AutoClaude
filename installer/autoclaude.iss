@@ -1,8 +1,8 @@
-; AutoClaude Inno Setup Installation Script
+﻿; AutoClaude Inno Setup Installation Script
 ; Requires Inno Setup 6.0+
 
 #define MyAppName "AutoClaude"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "AutoClaude"
 #define MyAppURL "https://github.com/AcePeak/AutoClaude"
 #define MyAppExeName "autoclaude-tray.ps1"
@@ -115,3 +115,4 @@ begin
       mbInformation, MB_OK);
   end;
 end;
+
