@@ -651,6 +651,8 @@ $html += @"
 "@
 
 # Write HTML file
-Set-Content -Path $DashboardPath -Value $html -Encoding UTF8
+# Write with UTF-8 encoding (without BOM) for proper Chinese character support
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($DashboardPath, $html, $utf8NoBom)
 
 Write-Host "Dashboard generated: $DashboardPath" -ForegroundColor Green
