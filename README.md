@@ -297,6 +297,35 @@ cd AutoClaude
 
 The installer will be at `dist/AutoClaude_Setup_x.x.x.exe`
 
+## Creating a Release
+
+Automated release to GitHub with version bumping:
+
+```powershell
+# Prerequisites: Install GitHub CLI and authenticate
+# https://cli.github.com/
+# gh auth login
+
+# Patch release (1.0.0 -> 1.0.1)
+.\release.ps1
+
+# Minor release (1.0.1 -> 1.1.0)
+.\release.ps1 -BumpType minor
+
+# Major release (1.1.0 -> 2.0.0)
+.\release.ps1 -BumpType major
+
+# With custom release notes
+.\release.ps1 -Message "Fixed critical bug in executor"
+```
+
+The release script will:
+1. Bump version in `version.json` and `autoclaude.iss`
+2. Build the installer
+3. Commit and tag the version
+4. Push to GitHub
+5. Create GitHub Release with installer attached
+
 ## Troubleshooting
 
 ### Tray icon doesn't appear
