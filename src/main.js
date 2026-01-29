@@ -224,115 +224,128 @@ ipcMain.handle('check-context-menu', async () => {
 
 // Handle command line arguments (for context menu integration)
 function handleCommandLineArgs() {
-  const args = process.argv.slice(app.isPackaged ? 1 : 2);
   const fs = require('fs');
+  const { exec } = require('child_process');
 
-  console.log('Command line args:', args);
+  // Initialize logger early for command line handling
+  initAppDataDir();
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  logger.info(`Command line args: ${JSON.stringify(process.argv)}`);
+  logger.info(`app.isPackaged: ${app.isPackaged}`);
 
-    if (arg === '--init' && args[i + 1]) {
-      let targetPath = args[i + 1];
-      // Remove quotes if present
-      targetPath = targetPath.replace(/^["']|["']$/g, '');
-      // Normalize path
-      targetPath = path.normalize(targetPath);
+  // Find --init or --open-claude in argv
+  const initIndex = process.argv.findIndex(arg => arg === '--init');
+  const openClaudeIndex = process.argv.findIndex(arg => arg === '--open-claude');
 
-      console.log('Initializing project at:', targetPath);
+  logger.info(`initIndex: ${initIndex}, openClaudeIndex: ${openClaudeIndex}`);
 
-      // Verify path exists
-      if (!fs.existsSync(targetPath)) {
-        console.error('Path does not exist:', targetPath);
-        app.whenReady().then(() => {
-          const { Notification } = require('electron');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'AutoClaude Error',
-              body: `Path does not exist: ${targetPath}`
-            }).show();
-          }
-        });
-        return true;
-      }
+  // Handle --init
+  if (initIndex !== -1 && process.argv[initIndex + 1]) {
+    let targetPath = process.argv[initIndex + 1];
+    logger.info(`Raw targetPath: ${targetPath}`);
 
-      // Verify it's a directory
-      if (!fs.statSync(targetPath).isDirectory()) {
-        console.error('Path is not a directory:', targetPath);
-        app.whenReady().then(() => {
-          const { Notification } = require('electron');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'AutoClaude Error',
-              body: `Path is not a directory: ${targetPath}`
-            }).show();
-          }
-        });
-        return true;
-      }
+    // Remove quotes if present
+    targetPath = targetPath.replace(/^["']|["']$/g, '');
+    // Normalize path
+    targetPath = path.normalize(targetPath);
 
-      // Initialize project
-      const { initProjectSync } = require('./cli/init');
-      try {
-        console.log('Calling initProjectSync with:', targetPath);
-        initProjectSync(targetPath);
-        console.log('Project initialized successfully');
+    logger.info(`Normalized targetPath: ${targetPath}`);
 
-        // Verify collaboration directory was created
-        const collabDir = path.join(targetPath, 'collaboration');
-        if (fs.existsSync(collabDir)) {
-          console.log('Collaboration directory created:', collabDir);
-        } else {
-          console.error('Collaboration directory NOT created!');
+    // Verify path exists
+    if (!fs.existsSync(targetPath)) {
+      logger.error(`Path does not exist: ${targetPath}`);
+      app.whenReady().then(() => {
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AutoClaude Error',
+            body: `Path does not exist: ${targetPath}`
+          }).show();
         }
-
-        app.whenReady().then(() => {
-          const { Notification } = require('electron');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'AutoClaude',
-              body: `Project initialized at ${targetPath}`
-            }).show();
-          }
-          // Don't quit - let the app continue running
-        });
-      } catch (err) {
-        console.error('Init error:', err);
-        console.error('Init error stack:', err.stack);
-        app.whenReady().then(() => {
-          const { Notification } = require('electron');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'AutoClaude Error',
-              body: err.message
-            }).show();
-          }
-        });
-      }
-      return true;
-    }
-
-    if (arg === '--open-claude' && args[i + 1]) {
-      let targetPath = args[i + 1];
-      // Remove quotes if present
-      targetPath = targetPath.replace(/^["']|["']$/g, '');
-      // Normalize path
-      targetPath = path.normalize(targetPath);
-
-      // Open Claude in directory using shell
-      const { exec } = require('child_process');
-      const cmdPath = process.env.ComSpec || 'cmd.exe';
-      exec(`start "" "${cmdPath}" /k claude`, {
-        cwd: targetPath,
-        shell: true
-      }, (err) => {
-        if (err) {
-          console.error('Error opening Claude:', err);
-        }
-        app.quit();
       });
       return true;
     }
+
+    // Verify it's a directory
+    if (!fs.statSync(targetPath).isDirectory()) {
+      logger.error(`Path is not a directory: ${targetPath}`);
+      app.whenReady().then(() => {
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AutoClaude Error',
+            body: `Path is not a directory: ${targetPath}`
+          }).show();
+        }
+      });
+      return true;
+    }
+
+    // Initialize project
+    const { initProjectSync } = require('./cli/init');
+    try {
+      logger.info(`Calling initProjectSync with: ${targetPath}`);
+      initProjectSync(targetPath);
+
+      // Verify collaboration directory was created
+      const collabDir = path.join(targetPath, 'collaboration');
+      if (fs.existsSync(collabDir)) {
+        logger.ok(`Collaboration directory created: ${collabDir}`);
+      } else {
+        logger.error(`Collaboration directory NOT created!`);
+      }
+
+      app.whenReady().then(() => {
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AutoClaude',
+            body: `Project initialized at ${targetPath}`
+          }).show();
+        }
+        // Don't quit - let the app continue running
+      });
+    } catch (err) {
+      logger.error(`Init error: ${err.message}`);
+      logger.error(`Stack: ${err.stack}`);
+      app.whenReady().then(() => {
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AutoClaude Error',
+            body: err.message
+          }).show();
+        }
+      });
+    }
+    return true;
+  }
+
+  // Handle --open-claude
+  if (openClaudeIndex !== -1 && process.argv[openClaudeIndex + 1]) {
+    let targetPath = process.argv[openClaudeIndex + 1];
+    logger.info(`Open Claude raw targetPath: ${targetPath}`);
+
+    targetPath = targetPath.replace(/^["']|["']$/g, '');
+    targetPath = path.normalize(targetPath);
+
+    logger.info(`Open Claude normalized targetPath: ${targetPath}`);
+
+    const cmdPath = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    logger.info(`Using cmd path: ${cmdPath}`);
+
+    exec(`start "" "${cmdPath}" /k claude`, {
+      cwd: targetPath,
+      shell: true
+    }, (err) => {
+      if (err) {
+        logger.error(`Error opening Claude: ${err.message}`);
+      } else {
+        logger.ok(`Opened Claude in: ${targetPath}`);
+      }
+      app.quit();
+    });
+    return true;
   }
 
   return false;
@@ -368,85 +381,102 @@ app.on('before-quit', () => {
 
 // Handle second instance
 app.on('second-instance', (event, commandLine, workingDirectory) => {
-  // Check if this is a command line invocation
-  const args = commandLine.slice(1);
   const fs = require('fs');
+  const { exec } = require('child_process');
 
-  console.log('Second instance args:', args);
+  logger.info(`Second instance detected`);
+  logger.info(`commandLine: ${JSON.stringify(commandLine)}`);
+  logger.info(`workingDirectory: ${workingDirectory}`);
 
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--init' && args[i + 1]) {
-      let targetPath = args[i + 1];
-      // Remove quotes if present
-      targetPath = targetPath.replace(/^["']|["']$/g, '');
-      // Normalize path
-      targetPath = path.normalize(targetPath);
+  // Find --init or --open-claude in commandLine
+  const initIndex = commandLine.findIndex(arg => arg === '--init');
+  const openClaudeIndex = commandLine.findIndex(arg => arg === '--open-claude');
 
-      console.log('Second instance init at:', targetPath);
+  logger.info(`initIndex: ${initIndex}, openClaudeIndex: ${openClaudeIndex}`);
 
-      if (!fs.existsSync(targetPath)) {
-        if (tray) {
-          tray.showNotification('AutoClaude Error', `Path does not exist: ${targetPath}`);
-        }
-        return;
-      }
+  // Handle --init
+  if (initIndex !== -1 && commandLine[initIndex + 1]) {
+    let targetPath = commandLine[initIndex + 1];
+    logger.info(`Raw targetPath: ${targetPath}`);
 
-      if (!fs.statSync(targetPath).isDirectory()) {
-        if (tray) {
-          tray.showNotification('AutoClaude Error', `Path is not a directory: ${targetPath}`);
-        }
-        return;
-      }
+    // Remove quotes if present
+    targetPath = targetPath.replace(/^["']|["']$/g, '');
+    // Normalize path
+    targetPath = path.normalize(targetPath);
 
-      try {
-        const { initProjectSync } = require('./cli/init');
-        console.log('Second instance calling initProjectSync with:', targetPath);
-        initProjectSync(targetPath);
+    logger.info(`Normalized targetPath: ${targetPath}`);
 
-        // Verify collaboration directory was created
-        const collabDir = path.join(targetPath, 'collaboration');
-        if (fs.existsSync(collabDir)) {
-          console.log('Collaboration directory created:', collabDir);
-        } else {
-          console.error('Collaboration directory NOT created!');
-        }
-
-        if (tray) {
-          tray.showNotification('AutoClaude', `Project initialized at ${targetPath}`);
-          tray.updateMenu();
-        }
-      } catch (err) {
-        console.error('Second instance init error:', err);
-        console.error('Second instance init error stack:', err.stack);
-        if (tray) {
-          tray.showNotification('AutoClaude Error', err.message);
-        }
+    if (!fs.existsSync(targetPath)) {
+      logger.error(`Path does not exist: ${targetPath}`);
+      if (tray) {
+        tray.showNotification('AutoClaude Error', `Path does not exist: ${targetPath}`);
       }
       return;
     }
 
-    if (args[i] === '--open-claude' && args[i + 1]) {
-      let targetPath = args[i + 1];
-      targetPath = targetPath.replace(/^["']|["']$/g, '');
-      // Normalize path
-      targetPath = path.normalize(targetPath);
-
-      // Open Claude in directory using shell
-      const { exec } = require('child_process');
-      const cmdPath = process.env.ComSpec || 'cmd.exe';
-      exec(`start "" "${cmdPath}" /k claude`, {
-        cwd: targetPath,
-        shell: true
-      }, (err) => {
-        if (err) {
-          console.error('Error opening Claude:', err);
-        }
-      });
+    if (!fs.statSync(targetPath).isDirectory()) {
+      logger.error(`Path is not a directory: ${targetPath}`);
+      if (tray) {
+        tray.showNotification('AutoClaude Error', `Path is not a directory: ${targetPath}`);
+      }
       return;
     }
+
+    try {
+      const { initProjectSync } = require('./cli/init');
+      logger.info(`Calling initProjectSync with: ${targetPath}`);
+      initProjectSync(targetPath);
+
+      // Verify collaboration directory was created
+      const collabDir = path.join(targetPath, 'collaboration');
+      if (fs.existsSync(collabDir)) {
+        logger.ok(`Collaboration directory created: ${collabDir}`);
+      } else {
+        logger.error(`Collaboration directory NOT created!`);
+      }
+
+      if (tray) {
+        tray.showNotification('AutoClaude', `Project initialized at ${targetPath}`);
+        tray.updateMenu();
+      }
+    } catch (err) {
+      logger.error(`Init error: ${err.message}`);
+      logger.error(`Stack: ${err.stack}`);
+      if (tray) {
+        tray.showNotification('AutoClaude Error', err.message);
+      }
+    }
+    return;
+  }
+
+  // Handle --open-claude
+  if (openClaudeIndex !== -1 && commandLine[openClaudeIndex + 1]) {
+    let targetPath = commandLine[openClaudeIndex + 1];
+    logger.info(`Open Claude raw targetPath: ${targetPath}`);
+
+    targetPath = targetPath.replace(/^["']|["']$/g, '');
+    targetPath = path.normalize(targetPath);
+
+    logger.info(`Open Claude normalized targetPath: ${targetPath}`);
+
+    const cmdPath = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    logger.info(`Using cmd path: ${cmdPath}`);
+
+    exec(`start "" "${cmdPath}" /k claude`, {
+      cwd: targetPath,
+      shell: true
+    }, (err) => {
+      if (err) {
+        logger.error(`Error opening Claude: ${err.message}`);
+      } else {
+        logger.ok(`Opened Claude in: ${targetPath}`);
+      }
+    });
+    return;
   }
 
   // Show notification that app is already running
+  logger.info('No command found, showing already running notification');
   if (tray) {
     tray.showNotification('AutoClaude', 'Application is already running');
   }
