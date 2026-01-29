@@ -787,32 +787,52 @@ function Stop-Watcher {
     }
 }
 
-# EMERGENCY: Stop all Claude processes and clean up locks
+# EMERGENCY: Stop only AutoClaude-related processes (not user's own Claude)
 function Stop-AllClaude {
-    Write-TrayLog "EMERGENCY STOP: Killing all Claude processes..."
+    Write-TrayLog "EMERGENCY STOP: Stopping AutoClaude processes..."
 
     # Stop watcher first
     Stop-Watcher
 
-    # Kill all claude.exe processes
-    $claudeProcesses = Get-Process -Name "claude" -ErrorAction SilentlyContinue
     $killedCount = 0
-    foreach ($proc in $claudeProcesses) {
-        try {
-            $proc.Kill()
-            $killedCount++
-            Write-TrayLog "Killed claude.exe PID: $($proc.Id)"
-        } catch {
-            Write-TrayLog "Failed to kill PID $($proc.Id): $_"
+    $projects = Get-Projects
+
+    # Collect PIDs from lock files (these are our executor processes)
+    $ourPids = @()
+    foreach ($project in $projects) {
+        $lockDir = Join-Path $project.path "collaboration\.autoclaude\lock"
+        if (Test-Path $lockDir) {
+            $lockFiles = Get-ChildItem -Path $lockDir -Filter "*.lock" -ErrorAction SilentlyContinue
+            foreach ($lockFile in $lockFiles) {
+                try {
+                    $lockContent = Get-Content $lockFile.FullName -Raw | ConvertFrom-Json
+                    if ($lockContent.pid) {
+                        $ourPids += $lockContent.pid
+                    }
+                } catch {}
+            }
         }
     }
 
-    # Also kill any PowerShell processes running executor/supervisor scripts
+    # Kill PowerShell processes running our scripts (executor/supervisor/watcher)
     $psProcesses = Get-Process -Name "powershell" -ErrorAction SilentlyContinue
     foreach ($proc in $psProcesses) {
         try {
             $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($proc.Id)").CommandLine
             if ($cmdLine -match "executor\.ps1|supervisor\.ps1|watcher\.ps1") {
+                # Find and kill child processes (claude.exe) first
+                $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                foreach ($child in $children) {
+                    try {
+                        $childProc = Get-Process -Id $child.ProcessId -ErrorAction SilentlyContinue
+                        if ($childProc) {
+                            $childProc.Kill()
+                            $killedCount++
+                            Write-TrayLog "Killed child process: $($child.Name) PID: $($child.ProcessId)"
+                        }
+                    } catch {}
+                }
+                # Then kill the PowerShell process
                 $proc.Kill()
                 $killedCount++
                 Write-TrayLog "Killed PowerShell PID: $($proc.Id)"
@@ -820,8 +840,19 @@ function Stop-AllClaude {
         } catch {}
     }
 
+    # Also kill processes recorded in lock files (in case they weren't caught above)
+    foreach ($pid in $ourPids) {
+        try {
+            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($proc) {
+                $proc.Kill()
+                $killedCount++
+                Write-TrayLog "Killed locked process PID: $pid"
+            }
+        } catch {}
+    }
+
     # Clean up all lock files
-    $projects = Get-Projects
     foreach ($project in $projects) {
         $lockDir = Join-Path $project.path "collaboration\.autoclaude\lock"
         if (Test-Path $lockDir) {
@@ -835,7 +866,7 @@ function Stop-AllClaude {
         }
     }
 
-    Show-Notification -Title "AutoClaude" -Message "Stopped $killedCount processes and cleaned up locks" -Icon Warning
+    Show-Notification -Title "AutoClaude" -Message "Stopped $killedCount AutoClaude processes" -Icon Warning
     Write-TrayLog "EMERGENCY STOP complete: $killedCount processes killed"
 }
 
