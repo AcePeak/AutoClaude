@@ -5,20 +5,37 @@ param(
     [switch]$Hidden  # Hide console window
 )
 
-# Hide console window
-if ($Hidden) {
-    Add-Type -Name Window -Namespace Console -MemberDefinition '
-    [DllImport("Kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);
-    '
-    $consolePtr = [Console.Window]::GetConsoleWindow()
-    [Console.Window]::ShowWindow($consolePtr, 0) | Out-Null
-}
+$ErrorActionPreference = "Continue"
 
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+# Early logging for debugging startup issues
+$earlyLogDir = Join-Path $env:APPDATA "AutoClaude"
+if (-not (Test-Path $earlyLogDir)) {
+    New-Item -ItemType Directory -Path $earlyLogDir -Force | Out-Null
+}
+$earlyLogFile = Join-Path $earlyLogDir "tray_startup.log"
+$startTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Add-Content -Path $earlyLogFile -Value "[$startTime] Tray app starting..." -Encoding UTF8
+
+try {
+    # Hide console window
+    if ($Hidden) {
+        Add-Type -Name Window -Namespace Console -MemberDefinition '
+        [DllImport("Kernel32.dll")]
+        public static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);
+        '
+        $consolePtr = [Console.Window]::GetConsoleWindow()
+        [Console.Window]::ShowWindow($consolePtr, 0) | Out-Null
+    }
+
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    Add-Content -Path $earlyLogFile -Value "[$startTime] Assemblies loaded successfully" -Encoding UTF8
+} catch {
+    Add-Content -Path $earlyLogFile -Value "[$startTime] ERROR during startup: $_" -Encoding UTF8
+    throw
+}
 
 # Configuration
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -261,6 +278,139 @@ function Update-TrayTooltip {
     }
 }
 
+# Get global settings
+function Get-GlobalSettings {
+    $settingsFile = Join-Path $AppDataDir "settings.json"
+    $cpuCores = (Get-CimInstance Win32_Processor).NumberOfCores
+    if (-not $cpuCores) { $cpuCores = 2 }
+
+    # Default based on CPU cores
+    $defaultMaxExecutors = [Math]::Max(1, [Math]::Min(4, [Math]::Floor($cpuCores / 2)))
+
+    $settings = @{
+        max_executors = $defaultMaxExecutors
+        check_interval_seconds = 60
+    }
+
+    if (Test-Path $settingsFile) {
+        try {
+            $saved = Get-Content $settingsFile -Raw | ConvertFrom-Json
+            if ($saved.max_executors) { $settings.max_executors = $saved.max_executors }
+            if ($saved.check_interval_seconds) { $settings.check_interval_seconds = $saved.check_interval_seconds }
+        } catch {}
+    }
+
+    return $settings
+}
+
+# Save global settings
+function Save-GlobalSettings {
+    param($Settings)
+    $settingsFile = Join-Path $AppDataDir "settings.json"
+    $Settings | ConvertTo-Json | Set-Content $settingsFile -Encoding UTF8
+
+    # Also update all project configs
+    $projects = Get-Projects
+    foreach ($project in $projects) {
+        $configFile = Join-Path $project.path "collaboration\.autoclaude\config.json"
+        if (Test-Path $configFile) {
+            try {
+                $config = Get-Content $configFile -Raw | ConvertFrom-Json
+                $config.max_executors = $Settings.max_executors
+                $config.check_interval_seconds = $Settings.check_interval_seconds
+                $config | ConvertTo-Json -Depth 10 | Set-Content $configFile -Encoding UTF8
+            } catch {}
+        }
+    }
+}
+
+# Show settings dialog
+function Show-SettingsDialog {
+    $settings = Get-GlobalSettings
+    $cpuCores = (Get-CimInstance Win32_Processor).NumberOfCores
+    if (-not $cpuCores) { $cpuCores = 2 }
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "AutoClaude Settings"
+    $form.Size = New-Object System.Drawing.Size(350, 220)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+
+    # Max executors
+    $lblExecutors = New-Object System.Windows.Forms.Label
+    $lblExecutors.Text = "Max concurrent executors:"
+    $lblExecutors.Location = New-Object System.Drawing.Point(20, 20)
+    $lblExecutors.Size = New-Object System.Drawing.Size(150, 20)
+    $form.Controls.Add($lblExecutors)
+
+    $numExecutors = New-Object System.Windows.Forms.NumericUpDown
+    $numExecutors.Location = New-Object System.Drawing.Point(180, 18)
+    $numExecutors.Size = New-Object System.Drawing.Size(60, 20)
+    $numExecutors.Minimum = 1
+    $numExecutors.Maximum = 10
+    $numExecutors.Value = $settings.max_executors
+    $form.Controls.Add($numExecutors)
+
+    $lblCores = New-Object System.Windows.Forms.Label
+    $lblCores.Text = "(Your CPU: $cpuCores cores)"
+    $lblCores.Location = New-Object System.Drawing.Point(250, 20)
+    $lblCores.Size = New-Object System.Drawing.Size(100, 20)
+    $lblCores.ForeColor = [System.Drawing.Color]::Gray
+    $form.Controls.Add($lblCores)
+
+    # Check interval
+    $lblInterval = New-Object System.Windows.Forms.Label
+    $lblInterval.Text = "Check interval (seconds):"
+    $lblInterval.Location = New-Object System.Drawing.Point(20, 60)
+    $lblInterval.Size = New-Object System.Drawing.Size(150, 20)
+    $form.Controls.Add($lblInterval)
+
+    $numInterval = New-Object System.Windows.Forms.NumericUpDown
+    $numInterval.Location = New-Object System.Drawing.Point(180, 58)
+    $numInterval.Size = New-Object System.Drawing.Size(60, 20)
+    $numInterval.Minimum = 10
+    $numInterval.Maximum = 600
+    $numInterval.Value = $settings.check_interval_seconds
+    $form.Controls.Add($numInterval)
+
+    # Recommendation label
+    $lblRecommend = New-Object System.Windows.Forms.Label
+    $lblRecommend.Text = "Recommended: 1-2 executors for most computers.`nEach executor uses significant memory."
+    $lblRecommend.Location = New-Object System.Drawing.Point(20, 100)
+    $lblRecommend.Size = New-Object System.Drawing.Size(300, 40)
+    $lblRecommend.ForeColor = [System.Drawing.Color]::Gray
+    $form.Controls.Add($lblRecommend)
+
+    # Buttons
+    $btnSave = New-Object System.Windows.Forms.Button
+    $btnSave.Text = "Save"
+    $btnSave.Location = New-Object System.Drawing.Point(150, 150)
+    $btnSave.Size = New-Object System.Drawing.Size(75, 25)
+    $btnSave.Add_Click({
+        $newSettings = @{
+            max_executors = [int]$numExecutors.Value
+            check_interval_seconds = [int]$numInterval.Value
+        }
+        Save-GlobalSettings -Settings $newSettings
+        Show-Notification -Title "AutoClaude" -Message "Settings saved"
+        $form.Close()
+    })
+    $form.Controls.Add($btnSave)
+
+    $btnCancel = New-Object System.Windows.Forms.Button
+    $btnCancel.Text = "Cancel"
+    $btnCancel.Location = New-Object System.Drawing.Point(240, 150)
+    $btnCancel.Size = New-Object System.Drawing.Size(75, 25)
+    $btnCancel.Add_Click({
+        $form.Close()
+    })
+    $form.Controls.Add($btnCancel)
+
+    $form.ShowDialog() | Out-Null
+}
+
 # Build context menu
 function Build-ContextMenu {
     $menu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -300,10 +450,28 @@ function Build-ContextMenu {
             $subMenu = New-Object System.Windows.Forms.ToolStripMenuItem
             $subMenu.Text = $project.name
 
+            # Open Dashboard
+            $openDashboardItem = New-Object System.Windows.Forms.ToolStripMenuItem
+            $openDashboardItem.Text = "Open Dashboard"
+            $projectPath = $project.path
+            $openDashboardItem.Add_Click({
+                $dashboardPath = Join-Path $projectPath "collaboration\dashboard.html"
+                # Regenerate dashboard first
+                $genScript = Join-Path $ScriptsDir "generate-dashboard.ps1"
+                if (Test-Path $genScript) {
+                    Start-Process "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$genScript`" -ProjectPath `"$projectPath`"" -Wait -WindowStyle Hidden
+                }
+                if (Test-Path $dashboardPath) {
+                    Start-Process $dashboardPath
+                } else {
+                    Show-Notification -Title "AutoClaude" -Message "Dashboard not found. Try initializing the project first." -Icon Warning
+                }
+            }.GetNewClosure())
+            $subMenu.DropDownItems.Add($openDashboardItem) | Out-Null
+
             # Open directory
             $openDirItem = New-Object System.Windows.Forms.ToolStripMenuItem
             $openDirItem.Text = "Open Directory"
-            $projectPath = $project.path
             $openDirItem.Add_Click({
                 Start-Process "explorer.exe" -ArgumentList $projectPath
             }.GetNewClosure())
@@ -350,8 +518,9 @@ function Build-ContextMenu {
             } else {
                 foreach ($task in $tasks) {
                     $taskMenu = New-Object System.Windows.Forms.ToolStripMenuItem
-                    $maxIterLabel = if ($task.maxIterations -eq 0) { "∞" } else { $task.maxIterations }
-                    $taskMenu.Text = "$($task.id) [$($task.status)] (iter: $($task.iteration)/$maxIterLabel)"
+                    $maxIterLabel = if ($task.maxIterations -eq 0) { "Inf" } else { $task.maxIterations.ToString() }
+                    $taskText = $task.id + " [" + $task.status + "] (iter: " + $task.iteration.ToString() + "/" + $maxIterLabel + ")"
+                    $taskMenu.Text = $taskText
 
                     $taskPath = $task.path
                     $taskId = $task.id
@@ -545,6 +714,14 @@ function Build-ContextMenu {
 
     $menu.Items.Add($logMenu) | Out-Null
 
+    # Settings menu
+    $settingsItem = New-Object System.Windows.Forms.ToolStripMenuItem
+    $settingsItem.Text = "Settings"
+    $settingsItem.Add_Click({
+        Show-SettingsDialog
+    })
+    $menu.Items.Add($settingsItem) | Out-Null
+
     $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
     # Exit
@@ -643,21 +820,43 @@ function Start-UpdateTimer {
 
 # Main function
 function Main {
-    Write-TrayLog "AutoClaude tray application started"
+    try {
+        Write-TrayLog "AutoClaude tray application started"
+        Write-TrayLog "ScriptDir: $ScriptDir"
+        Write-TrayLog "AppDir: $AppDir"
+        Write-TrayLog "ScriptsDir: $ScriptsDir"
 
-    Initialize-TrayIcon
-    Start-UpdateTimer
+        Write-TrayLog "Initializing tray icon..."
+        Initialize-TrayIcon
+        Write-TrayLog "Tray icon initialized"
 
-    # Auto-start Watcher
-    Start-Watcher
+        Start-UpdateTimer
+        Write-TrayLog "Update timer started"
 
-    Show-Notification -Title "AutoClaude" -Message "Tray application started`nRight-click icon for menu"
+        # Auto-start Watcher
+        Start-Watcher
+        Write-TrayLog "Watcher started"
 
-    # Run message loop
-    [System.Windows.Forms.Application]::Run()
+        Show-Notification -Title "AutoClaude" -Message "Tray application started`nRight-click icon for menu"
 
-    Write-TrayLog "AutoClaude tray application exited"
+        Write-TrayLog "Entering message loop..."
+        # Run message loop
+        [System.Windows.Forms.Application]::Run()
+
+        Write-TrayLog "AutoClaude tray application exited"
+    } catch {
+        Write-TrayLog "FATAL ERROR in Main: $_"
+        Write-TrayLog "Stack trace: $($_.ScriptStackTrace)"
+        throw
+    }
 }
 
 # Execute
-Main
+try {
+    Main
+} catch {
+    $errorLog = Join-Path $AppDataDir "tray_error.log"
+    $errorTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -Path $errorLog -Value "[$errorTime] FATAL: $_" -Encoding UTF8
+    Add-Content -Path $errorLog -Value "[$errorTime] Stack: $($_.ScriptStackTrace)" -Encoding UTF8
+}

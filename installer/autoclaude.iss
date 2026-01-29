@@ -60,6 +60,10 @@ Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeOpen"
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeOpen"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\installer\assets\autoclaude.ico"; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeOpen\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\open-claude.ps1"" -Path ""%V"""; Tasks: contextmenu
 
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeDashboard"; ValueType: string; ValueName: ""; ValueData: "View AutoClaude Dashboard"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeDashboard"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\installer\assets\autoclaude.ico"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\AutoClaudeDashboard\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\view-dashboard.ps1"" -Path ""%V"""; Tasks: contextmenu
+
 ; Context menu - Folder
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeInit"; ValueType: string; ValueName: ""; ValueData: "Initialize AutoClaude Project"; Tasks: contextmenu; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeInit"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\installer\assets\autoclaude.ico"; Tasks: contextmenu
@@ -68,6 +72,10 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeInit\command"; V
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeOpen"; ValueType: string; ValueName: ""; ValueData: "Open Claude"; Tasks: contextmenu; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeOpen"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\installer\assets\autoclaude.ico"; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeOpen\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\open-claude.ps1"" -Path ""%1"""; Tasks: contextmenu
+
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeDashboard"; ValueType: string; ValueName: ""; ValueData: "View AutoClaude Dashboard"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeDashboard"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\installer\assets\autoclaude.ico"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\AutoClaudeDashboard\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\view-dashboard.ps1"" -Path ""%1"""; Tasks: contextmenu
 
 ; Auto-start at login
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AutoClaude"; ValueData: "wscript.exe ""{app}\tray\start-hidden.vbs"""; Tasks: startupicon; Flags: uninsdeletevalue

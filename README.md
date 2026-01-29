@@ -55,6 +55,12 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 - **Heavy refactoring**: Every 15 tasks - reassess architecture, apply design patterns
 - **First principles**: Regular checks to ensure code matches requirements
 
+### 📊 Visual Dashboard
+- **Real-time overview**: HTML dashboard showing all tasks at a glance
+- **Task history**: View pending, executing, and completed tasks
+- **Quick actions**: View task details, logs, and executor info
+- **Auto-refresh**: Dashboard updates every 30 seconds
+
 ### 🛡️ Reliability
 - **Crash recovery**: If executor dies, another picks up the task
 - **Per-task logs**: Full execution history for every task
@@ -119,6 +125,7 @@ your-project/
     ├── completed/               # Finished tasks
     ├── inbox.md                 # Write requirements here
     ├── project_plan.md          # Project overview
+    ├── dashboard.html           # Visual task dashboard
     ├── SUPERVISOR_GUIDE.md      # How Supervisor reviews
     ├── EXECUTOR_GUIDE.md        # How Executor works
     └── .autoclaude/
@@ -156,6 +163,7 @@ AutoClaude (right-click)
 ├── [Project Name] (Queue:2 Exec:1)
 │   ├── Open Directory          # Open in Explorer
 │   ├── Open Claude             # Start Claude CLI here
+│   ├── Open Dashboard          # View task dashboard in browser
 │   ├── Manage Tasks            # View/control active tasks
 │   │   └── task_xxx [STATUS] (iter: N/M)
 │   │       ├── View Task File
@@ -240,6 +248,22 @@ The Supervisor will automatically convert this to task files.
 
 **From tray:**
 - Right-click → View Logs → [Project] Logs
+
+### Viewing Dashboard
+
+The dashboard provides a visual overview of all tasks:
+
+**Access methods:**
+1. **Right-click menu**: In any initialized folder, right-click → "View AutoClaude Dashboard"
+2. **Tray menu**: Right-click tray → [Project Name] → Open Dashboard
+3. **Direct**: Open `collaboration/dashboard.html` in your browser
+
+**Dashboard features:**
+- Task counts by status (pending, executing, completed)
+- Detailed task cards with status, iteration progress, and description
+- Click any task to view full task content
+- Executor PID display for executing tasks
+- Auto-refresh every 30 seconds
 
 ### Manual Testing
 

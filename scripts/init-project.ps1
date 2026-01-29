@@ -95,6 +95,23 @@ function Initialize-AutoClaudeProject {
         }
     }
 
+    # Update config.json with CPU-based recommendation
+    $configPath = Join-Path $ProjectPath "collaboration\.autoclaude\config.json"
+    if (Test-Path $configPath) {
+        try {
+            $cpuCores = (Get-CimInstance Win32_Processor).NumberOfCores
+            if (-not $cpuCores) { $cpuCores = 2 }
+            $recommendedExecutors = [Math]::Max(1, [Math]::Min(4, [Math]::Floor($cpuCores / 2)))
+
+            $config = Get-Content $configPath -Raw | ConvertFrom-Json
+            $config.max_executors = $recommendedExecutors
+            $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+            Write-Info "Set max_executors to $recommendedExecutors (based on $cpuCores CPU cores)"
+        } catch {
+            Write-Warn "Could not update config: $_"
+        }
+    }
+
     # Create project_plan.md
     $projectPlanPath = Join-Path $ProjectPath "collaboration\project_plan.md"
     if (-not (Test-Path $projectPlanPath)) {
@@ -142,6 +159,18 @@ Write new requirements here, Supervisor will automatically process and convert t
 
     # Register project to global config
     Register-Project -ProjectPath $ProjectPath
+
+    # Generate initial dashboard
+    Write-Info "Generating dashboard..."
+    $dashboardScript = Join-Path $ScriptDir "generate-dashboard.ps1"
+    if (Test-Path $dashboardScript) {
+        try {
+            & powershell -ExecutionPolicy Bypass -File $dashboardScript -ProjectPath $ProjectPath 2>&1 | Out-Null
+            Write-Success "Created: dashboard.html"
+        } catch {
+            Write-Warn "Could not generate dashboard: $_"
+        }
+    }
 
     Write-Host ""
     Write-Success "AutoClaude project initialization complete!"

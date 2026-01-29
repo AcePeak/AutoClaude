@@ -193,6 +193,66 @@ function Check-Project {
     return $result
 }
 
+# Count running executors (by checking lock files with alive processes)
+function Get-RunningExecutorCount {
+    param([string]$ProjectPath)
+
+    $lockDir = Join-Path $ProjectPath "collaboration\.autoclaude\lock"
+    $count = 0
+
+    if (Test-Path $lockDir) {
+        $lockFiles = Get-ChildItem -Path $lockDir -Filter "*.lock" -ErrorAction SilentlyContinue
+        foreach ($lockFile in $lockFiles) {
+            try {
+                $lockContent = Get-Content $lockFile.FullName -Raw | ConvertFrom-Json
+                $lockPid = $lockContent.pid
+                $process = Get-Process -Id $lockPid -ErrorAction SilentlyContinue
+                if ($null -ne $process) {
+                    $count++
+                }
+            } catch {
+                # Invalid lock file, ignore
+            }
+        }
+    }
+
+    return $count
+}
+
+# Get max executors from config
+function Get-MaxExecutors {
+    param([string]$ProjectPath)
+
+    # Default based on CPU cores
+    $cpuCores = (Get-CimInstance Win32_Processor).NumberOfCores
+    if (-not $cpuCores) { $cpuCores = 2 }
+    $maxExecutors = [Math]::Max(1, [Math]::Min(4, [Math]::Floor($cpuCores / 2)))
+
+    # Check global settings first
+    $globalSettings = Join-Path $AppDataDir "settings.json"
+    if (Test-Path $globalSettings) {
+        try {
+            $settings = Get-Content $globalSettings -Raw | ConvertFrom-Json
+            if ($settings.max_executors) {
+                $maxExecutors = [int]$settings.max_executors
+            }
+        } catch {}
+    }
+
+    # Project config can override
+    $configFile = Join-Path $ProjectPath "collaboration\.autoclaude\config.json"
+    if (Test-Path $configFile) {
+        try {
+            $config = Get-Content $configFile -Raw | ConvertFrom-Json
+            if ($config.max_executors) {
+                $maxExecutors = [int]$config.max_executors
+            }
+        } catch {}
+    }
+
+    return $maxExecutors
+}
+
 # Trigger Supervisor
 function Trigger-Supervisor {
     param([string]$ProjectPath)
@@ -259,6 +319,20 @@ function Get-EnabledProjects {
     return $projects
 }
 
+# Update dashboard
+function Update-Dashboard {
+    param([string]$ProjectPath)
+
+    $dashboardScript = Join-Path $ScriptDir "generate-dashboard.ps1"
+    if (Test-Path $dashboardScript) {
+        try {
+            & powershell -ExecutionPolicy Bypass -File $dashboardScript -ProjectPath $ProjectPath 2>&1 | Out-Null
+        } catch {
+            Write-Log "Failed to update dashboard: $_" "WARN"
+        }
+    }
+}
+
 # Main watch loop
 function Start-Watcher {
     Write-Log "AutoClaude Watcher started" "OK"
@@ -290,19 +364,33 @@ function Start-Watcher {
                     }
 
                     if ($checkResult.needsExecutor) {
-                        # First, resume orphaned tasks
-                        if ($checkResult.orphanedTasks.Count -gt 0) {
-                            foreach ($orphanedTaskId in $checkResult.orphanedTasks) {
-                                Trigger-Executor -ProjectPath $project -ResumeTask $orphanedTaskId
-                            }
+                        # Check executor limit
+                        $runningCount = Get-RunningExecutorCount -ProjectPath $project
+                        $maxExecutors = Get-MaxExecutors -ProjectPath $project
+
+                        if ($runningCount -ge $maxExecutors) {
+                            Write-Log "[$projectName] Executor limit reached ($runningCount/$maxExecutors), skipping" "WARN"
                         } else {
-                            # Normal executor for new tasks
-                            Trigger-Executor -ProjectPath $project
+                            # First, resume orphaned tasks
+                            if ($checkResult.orphanedTasks.Count -gt 0) {
+                                foreach ($orphanedTaskId in $checkResult.orphanedTasks) {
+                                    if ($runningCount -lt $maxExecutors) {
+                                        Trigger-Executor -ProjectPath $project -ResumeTask $orphanedTaskId
+                                        $runningCount++
+                                    }
+                                }
+                            } else {
+                                # Normal executor for new tasks
+                                Trigger-Executor -ProjectPath $project
+                            }
                         }
                     }
                 } else {
                     Write-Log "[$projectName] No changes" "INFO"
                 }
+
+                # Always update dashboard
+                Update-Dashboard -ProjectPath $project
             }
         }
 
