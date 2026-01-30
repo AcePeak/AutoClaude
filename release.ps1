@@ -1,17 +1,25 @@
 # AutoClaude Release Script
-# Usage: .\release.ps1 [-BumpType major|minor|patch] [-Message "Release notes"]
+# Usage: .\release.ps1 [-BumpType major|minor|patch] [-Message "Release notes"] [-Sign]
 #
 # Examples:
 #   .\release.ps1                           # Bump patch version (1.0.0 -> 1.0.1)
 #   .\release.ps1 -BumpType minor           # Bump minor version (1.0.1 -> 1.1.0)
 #   .\release.ps1 -BumpType major           # Bump major version (1.1.0 -> 2.0.0)
 #   .\release.ps1 -Message "Bug fixes"      # Custom release notes
+#   .\release.ps1 -Sign                     # Build and sign with SignPath
 
 param(
     [ValidateSet("major", "minor", "patch")]
     [string]$BumpType = "patch",
 
-    [string]$Message = ""
+    [string]$Message = "",
+
+    [switch]$Sign,
+
+    [string]$SignPathApiToken = $env:SIGNPATH_API_TOKEN,
+    [string]$SignPathOrgId = $env:SIGNPATH_ORG_ID,
+    [string]$SignPathProject = "autoclaude",
+    [string]$SignPathPolicy = "release-signing"
 )
 
 $ErrorActionPreference = "Stop"
@@ -135,6 +143,61 @@ if (-not $installerPath) {
 }
 
 Write-Host "[OK] Installer built: $($installerPath.Name)" -ForegroundColor Green
+
+# Optional: Sign with SignPath
+if ($Sign) {
+    Write-Host ""
+    Write-Host "Code Signing with SignPath..." -ForegroundColor Cyan
+
+    # Check for required credentials
+    if (-not $SignPathApiToken) {
+        Write-Host "[WARNING] SignPath API token not found" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Options:" -ForegroundColor Cyan
+        Write-Host "  1. Set environment variable: `$env:SIGNPATH_API_TOKEN = 'your-token'"
+        Write-Host "  2. Pass parameter: -SignPathApiToken 'your-token'"
+        Write-Host "  3. Sign manually at https://app.signpath.io"
+        Write-Host ""
+        $continue = Read-Host "Continue without signing? (y/N)"
+        if ($continue -ne "y" -and $continue -ne "Y") {
+            exit 1
+        }
+    } elseif (-not $SignPathOrgId) {
+        Write-Host "[WARNING] SignPath Organization ID not found" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Set environment variable: `$env:SIGNPATH_ORG_ID = 'your-org-id'"
+        Write-Host "Or pass parameter: -SignPathOrgId 'your-org-id'"
+        Write-Host ""
+        $continue = Read-Host "Continue without signing? (y/N)"
+        if ($continue -ne "y" -and $continue -ne "Y") {
+            exit 1
+        }
+    } else {
+        # Call signing script
+        $signScript = Join-Path $ScriptDir "scripts\sign-with-signpath.ps1"
+        if (Test-Path $signScript) {
+            & $signScript `
+                -ApiToken $SignPathApiToken `
+                -OrganizationId $SignPathOrgId `
+                -ProjectSlug $SignPathProject `
+                -SigningPolicySlug $SignPathPolicy `
+                -InputFile $installerPath.FullName
+
+            if ($LASTEXITCODE -eq 0) {
+                # Update installer path to signed version
+                $signedPath = $installerPath.FullName -replace '\.exe$', '-signed.exe'
+                if (Test-Path $signedPath) {
+                    $installerPath = Get-Item $signedPath
+                    Write-Host "[OK] Using signed installer: $($installerPath.Name)" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "[WARNING] Signing failed, continuing with unsigned installer" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "[WARNING] Signing script not found: $signScript" -ForegroundColor Yellow
+        }
+    }
+}
 
 # Generate release notes
 $releaseNotes = ""
