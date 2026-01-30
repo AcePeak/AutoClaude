@@ -43,9 +43,14 @@ jobs:
         shell: pwsh
 
       - name: Deploy to artifacts branch
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./artifacts
-          publish_branch: artifacts
-          force_orphan: true
+        run: |
+          cd artifacts
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b artifacts
+          git add -A
+          git commit -m "Deploy artifacts from ${{ github.sha }}"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push origin artifacts --force
+        shell: bash
