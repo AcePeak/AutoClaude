@@ -71,7 +71,16 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 ### Installation
 
 1. Download the latest installer from [Releases](https://github.com/AcePeak/AutoClaude/releases)
-2. Run `AutoClaude_Setup_x.x.x.exe`
+2. Run `AutoClaude.Setup.x.x.x.exe`
+
+   > ⚠️ **Windows SmartScreen Warning**: You may see "Windows protected your PC" message. This is normal for open-source software without a paid code signing certificate.
+   >
+   > **To install:**
+   > 1. Click **"More info"**
+   > 2. Click **"Run anyway"**
+   >
+   > The software is safe - you can verify the source code in this repository.
+
 3. Choose to add context menu items (recommended)
 4. Done! The tray icon should appear
 
