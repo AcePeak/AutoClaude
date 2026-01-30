@@ -70,19 +70,40 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 
 ### Installation
 
-1. Download the latest installer from [Releases](https://github.com/AcePeak/AutoClaude/releases)
-2. Run `AutoClaude.Setup.x.x.x.exe`
+**One-line install** (PowerShell):
 
-   > ⚠️ **Windows SmartScreen Warning**: You may see "Windows protected your PC" message. This is normal for open-source software without a paid code signing certificate.
-   >
-   > **To install:**
-   > 1. Click **"More info"**
-   > 2. Click **"Run anyway"**
-   >
-   > The software is safe - you can verify the source code in this repository.
+```powershell
+irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1 | iex
+```
 
-3. Choose to add context menu items (recommended)
-4. Done! The tray icon should appear
+That's it! The installer will:
+- Download the latest build
+- Install to `%LOCALAPPDATA%\Programs\AutoClaude`
+- Register right-click context menus
+- Create Start Menu shortcut
+- Optionally add to startup
+
+**Uninstall:**
+
+```powershell
+irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/uninstall.ps1 | iex
+```
+
+<details>
+<summary>Advanced Installation Options</summary>
+
+```powershell
+# Silent install (no prompts, add to startup)
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1))) -NoPrompt -StartOnLogin
+
+# Install without starting
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1))) -NoStart
+
+# Silent uninstall, keep config
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/uninstall.ps1))) -NoPrompt -KeepConfig
+```
+
+</details>
 
 ### Initialize a Project
 
@@ -300,40 +321,36 @@ The dashboard provides a visual overview of all tasks:
 git clone https://github.com/AcePeak/AutoClaude.git
 cd AutoClaude
 
-# Build installer (requires Inno Setup 6)
-.\build.ps1
+# Install dependencies
+npm install
+
+# Build portable zip
+npm run build:portable
 ```
 
-The installer will be at `dist/AutoClaude_Setup_x.x.x.exe`
+The build output will be at `dist-electron/win-unpacked/` and `dist-electron/AutoClaude-x.x.x-win-portable.zip`
 
-## Creating a Release
-
-Automated release to GitHub with version bumping:
+## Development
 
 ```powershell
-# Prerequisites: Install GitHub CLI and authenticate
-# https://cli.github.com/
-# gh auth login
+# Run in development mode
+npm run dev
 
-# Patch release (1.0.0 -> 1.0.1)
-.\release.ps1
+# Build unpacked app
+npm run build:dir
 
-# Minor release (1.0.1 -> 1.1.0)
-.\release.ps1 -BumpType minor
-
-# Major release (1.1.0 -> 2.0.0)
-.\release.ps1 -BumpType major
-
-# With custom release notes
-.\release.ps1 -Message "Fixed critical bug in executor"
+# Build portable zip
+npm run build:portable
 ```
 
-The release script will:
-1. Bump version in `version.json` and `autoclaude.iss`
-2. Build the installer
-3. Commit and tag the version
-4. Push to GitHub
-5. Create GitHub Release with installer attached
+## Release Process
+
+Releases are automated via GitHub Actions:
+
+1. Update version in `package.json`
+2. Commit and push to `main` branch
+3. GitHub Actions automatically builds and deploys to `artifacts` branch
+4. Users get the latest version via the install script
 
 ## Troubleshooting
 

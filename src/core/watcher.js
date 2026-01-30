@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { spawn, fork } = require('child_process');
+const { spawn, exec } = require('child_process');
 const { getCollabDir, getConfigDir, getLockDir, ensureDir } = require('../utils/paths');
 const { getEnabledProjects, loadSettings } = require('../utils/projects');
 const Logger = require('../utils/logger');
@@ -8,17 +8,16 @@ const Logger = require('../utils/logger');
 const logger = new Logger('watcher');
 
 /**
- * Get the correct Node.js executable path
- * In packaged Electron app, we need to use the bundled Node
+ * Get the scripts directory path
+ * In packaged Electron app, scripts are in resources/scripts
  */
-function getNodePath() {
+function getScriptsPath() {
   // Check if we're in a packaged Electron app
-  if (process.versions && process.versions.electron) {
-    // In Electron, we can use fork() which uses process.execPath internally
-    // Or we can use the electron executable with --no-sandbox
-    return null; // Signal to use fork() instead of spawn('node', ...)
+  if (process.resourcesPath) {
+    return path.join(process.resourcesPath, 'scripts');
   }
-  return 'node';
+  // Development: scripts are in project root
+  return path.join(__dirname, '..', '..', 'scripts');
 }
 
 class Watcher {
@@ -168,33 +167,86 @@ class Watcher {
 
   /**
    * Trigger supervisor for a project
+   * Uses PowerShell script for reliability (like v1.0.2)
    */
   triggerSupervisor(projectPath) {
     logger.info(`Triggering Supervisor: ${projectPath}`);
 
-    const supervisorPath = path.join(__dirname, 'supervisor.js');
+    if (process.platform === 'win32') {
+      // Windows: Use PowerShell script
+      const scriptsPath = getScriptsPath();
+      const supervisorScript = path.join(scriptsPath, 'supervisor.ps1');
 
-    try {
-      // Use fork() which works in both Node.js and Electron
-      const child = fork(supervisorPath, [projectPath], {
-        detached: true,
-        stdio: 'ignore',
-        // Ensure child runs independently
-        env: { ...process.env }
-      });
-      child.unref();
+      if (!fs.existsSync(supervisorScript)) {
+        logger.error(`Supervisor script not found: ${supervisorScript}`);
+        return false;
+      }
 
-      this.supervisorProcesses.set(projectPath, child.pid);
-      logger.info(`Supervisor started with PID: ${child.pid}`);
-      return true;
-    } catch (err) {
-      logger.error(`Failed to start Supervisor: ${err.message}`);
-      return false;
+      try {
+        // Start detached via cmd.exe
+        const child = spawn('cmd.exe', ['/c', 'start', '/min', '', 'powershell.exe',
+          '-ExecutionPolicy', 'Bypass',
+          '-WindowStyle', 'Hidden',
+          '-File', supervisorScript,
+          '-ProjectPath', projectPath
+        ], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true
+        });
+        child.unref();
+
+        this.supervisorProcesses.set(projectPath, child.pid);
+        logger.info(`Supervisor started with PID: ${child.pid}`);
+        return true;
+      } catch (err) {
+        logger.error(`Failed to start Supervisor: ${err.message}`);
+        return false;
+      }
+    } else {
+      // macOS/Linux: Use shell script or direct node
+      const scriptsPath = getScriptsPath();
+      const supervisorScript = path.join(scriptsPath, 'supervisor.sh');
+
+      // Fallback to node if shell script doesn't exist
+      if (!fs.existsSync(supervisorScript)) {
+        const supervisorJs = path.join(__dirname, 'supervisor.js');
+        try {
+          const child = spawn('node', [supervisorJs, projectPath], {
+            detached: true,
+            stdio: 'ignore',
+            env: { ...process.env }
+          });
+          child.unref();
+          this.supervisorProcesses.set(projectPath, child.pid);
+          logger.info(`Supervisor started with PID: ${child.pid}`);
+          return true;
+        } catch (err) {
+          logger.error(`Failed to start Supervisor: ${err.message}`);
+          return false;
+        }
+      }
+
+      try {
+        const child = spawn('bash', [supervisorScript, projectPath], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+
+        this.supervisorProcesses.set(projectPath, child.pid);
+        logger.info(`Supervisor started with PID: ${child.pid}`);
+        return true;
+      } catch (err) {
+        logger.error(`Failed to start Supervisor: ${err.message}`);
+        return false;
+      }
     }
   }
 
   /**
    * Trigger executor for a project
+   * Uses PowerShell script for reliability (like v1.0.2)
    */
   triggerExecutor(projectPath, resumeTask = null) {
     const logMsg = resumeTask
@@ -202,27 +254,100 @@ class Watcher {
       : `Triggering Executor: ${projectPath}`;
     logger.info(logMsg);
 
-    const executorPath = path.join(__dirname, 'executor.js');
-    const args = [projectPath];
-    if (resumeTask) {
-      args.push('--resume', resumeTask);
-    }
+    if (process.platform === 'win32') {
+      // Windows: Use PowerShell script
+      const scriptsPath = getScriptsPath();
+      const executorScript = path.join(scriptsPath, 'executor.ps1');
 
-    try {
-      // Use fork() which works in both Node.js and Electron
-      const child = fork(executorPath, args, {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env }
-      });
-      child.unref();
+      if (!fs.existsSync(executorScript)) {
+        logger.error(`Executor script not found: ${executorScript}`);
+        return false;
+      }
 
-      this.executorProcesses.set(projectPath, child.pid);
-      logger.info(`Executor started with PID: ${child.pid}`);
-      return true;
-    } catch (err) {
-      logger.error(`Failed to start Executor: ${err.message}`);
-      return false;
+      const args = [
+        '-ExecutionPolicy', 'Bypass',
+        '-File', executorScript,
+        '-ProjectPath', projectPath
+      ];
+      if (resumeTask) {
+        args.push('-ResumeTask', resumeTask);
+      }
+
+      try {
+        // Use cmd.exe /c start to launch a truly detached process
+        // /min starts minimized, /b starts without new window
+        let psCmd = `powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "${executorScript}" -ProjectPath "${projectPath}"`;
+        if (resumeTask) {
+          psCmd += ` -ResumeTask "${resumeTask}"`;
+        }
+
+        // Start detached via cmd.exe
+        const child = spawn('cmd.exe', ['/c', 'start', '/min', '', 'powershell.exe',
+          '-ExecutionPolicy', 'Bypass',
+          '-WindowStyle', 'Hidden',
+          '-File', executorScript,
+          '-ProjectPath', projectPath
+        ].concat(resumeTask ? ['-ResumeTask', resumeTask] : []), {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true
+        });
+        child.unref();
+
+        this.executorProcesses.set(projectPath, child.pid);
+        logger.info(`Executor started with PID: ${child.pid}`);
+        return true;
+      } catch (err) {
+        logger.error(`Failed to start Executor: ${err.message}`);
+        return false;
+      }
+    } else {
+      // macOS/Linux: Use shell script or direct node
+      const scriptsPath = getScriptsPath();
+      const executorScript = path.join(scriptsPath, 'executor.sh');
+
+      // Fallback to node if shell script doesn't exist
+      if (!fs.existsSync(executorScript)) {
+        const executorJs = path.join(__dirname, 'executor.js');
+        const nodeArgs = [executorJs, projectPath];
+        if (resumeTask) {
+          nodeArgs.push('--resume', resumeTask);
+        }
+        try {
+          const child = spawn('node', nodeArgs, {
+            detached: true,
+            stdio: 'ignore',
+            env: { ...process.env }
+          });
+          child.unref();
+          this.executorProcesses.set(projectPath, child.pid);
+          logger.info(`Executor started with PID: ${child.pid}`);
+          return true;
+        } catch (err) {
+          logger.error(`Failed to start Executor: ${err.message}`);
+          return false;
+        }
+      }
+
+      const args = [executorScript, projectPath];
+      if (resumeTask) {
+        args.push('--resume', resumeTask);
+      }
+
+      try {
+        const child = spawn('bash', args, {
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+
+        this.executorProcesses.set(projectPath, child.pid);
+        logger.info(`Executor started with PID: ${child.pid}`);
+        return true;
+      } catch (err) {
+        logger.error(`Failed to start Executor: ${err.message}`);
+        return false;
+      }
     }
   }
 

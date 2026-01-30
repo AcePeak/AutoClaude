@@ -1,6 +1,6 @@
 {
   "name": "autoclaude",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Multi-AI agent collaboration tool for continuous development",
   "main": "src/main.js",
   "bin": {
@@ -11,6 +11,8 @@
     "dev": "electron . --dev",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir",
+    "build:portable": "electron-builder --win portable",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --mac --linux",
@@ -57,6 +59,10 @@
       {
         "from": "assets",
         "to": "assets"
+      },
+      {
+        "from": "scripts",
+        "to": "scripts"
       }
     ],
     "win": {

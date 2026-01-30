@@ -147,30 +147,48 @@ ipcMain.handle('register-context-menu', async () => {
       ? path.dirname(process.execPath)
       : path.join(__dirname, '..');
 
-    // Get icon path
+    // Get icon path and scripts path
     const iconPath = path.join(appPath, 'resources', 'assets', 'icon.ico');
+    const scriptsPath = app.isPackaged
+      ? path.join(appPath, 'resources', 'scripts')
+      : path.join(appPath, 'scripts');
+
+    // Use PowerShell scripts for reliability (like v1.0.2)
+    const initScript = path.join(scriptsPath, 'init-project.ps1');
+    const openClaudeScript = path.join(scriptsPath, 'open-claude.ps1');
+    const viewDashboardScript = path.join(scriptsPath, 'view-dashboard.ps1');
 
     // Create registry entries for context menu
     const regCommands = [
-      // Directory background - Initialize
+      // Directory background - Initialize (use PowerShell script)
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit" /ve /d "Initialize AutoClaude Project" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit" /v "Icon" /d "${iconPath}" /f`,
-      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit\\command" /ve /d "\\"${process.execPath}\\" --init \\"%V\\"" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${initScript}\\" -Path \\"%V\\"" /f`,
 
-      // Directory background - Open Claude
+      // Directory background - Open Claude (use PowerShell script)
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen" /ve /d "Open Claude" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen" /v "Icon" /d "${iconPath}" /f`,
-      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen\\command" /ve /d "\\"${process.execPath}\\" --open-claude \\"%V\\"" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${openClaudeScript}\\" -Path \\"%V\\"" /f`,
 
-      // Directory - Initialize
+      // Directory background - View Dashboard (use PowerShell script)
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeDashboard" /ve /d "View AutoClaude Dashboard" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeDashboard" /v "Icon" /d "${iconPath}" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeDashboard\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${viewDashboardScript}\\" -Path \\"%V\\"" /f`,
+
+      // Directory - Initialize (use PowerShell script)
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit" /ve /d "Initialize AutoClaude Project" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit" /v "Icon" /d "${iconPath}" /f`,
-      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit\\command" /ve /d "\\"${process.execPath}\\" --init \\"%1\\"" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${initScript}\\" -Path \\"%1\\"" /f`,
 
-      // Directory - Open Claude
+      // Directory - Open Claude (use PowerShell script)
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /ve /d "Open Claude" /f`,
       `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /v "Icon" /d "${iconPath}" /f`,
-      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen\\command" /ve /d "\\"${process.execPath}\\" --open-claude \\"%1\\"" /f`
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${openClaudeScript}\\" -Path \\"%1\\"" /f`,
+
+      // Directory - View Dashboard (use PowerShell script)
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeDashboard" /ve /d "View AutoClaude Dashboard" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeDashboard" /v "Icon" /d "${iconPath}" /f`,
+      `reg add "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeDashboard\\command" /ve /d "powershell.exe -ExecutionPolicy Bypass -File \\"${viewDashboardScript}\\" -Path \\"%1\\"" /f`
     ];
 
     for (const cmd of regCommands) {
@@ -194,8 +212,10 @@ ipcMain.handle('unregister-context-menu', async () => {
     const regCommands = [
       `reg delete "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeInit" /f`,
       `reg delete "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeOpen" /f`,
+      `reg delete "HKCU\\Software\\Classes\\Directory\\Background\\shell\\AutoClaudeDashboard" /f`,
       `reg delete "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeInit" /f`,
-      `reg delete "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /f`
+      `reg delete "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeOpen" /f`,
+      `reg delete "HKCU\\Software\\Classes\\Directory\\shell\\AutoClaudeDashboard" /f`
     ];
 
     for (const cmd of regCommands) {
@@ -227,6 +247,7 @@ ipcMain.handle('check-context-menu', async () => {
 });
 
 // Handle command line arguments (for context menu integration)
+// Note: Context menu now uses PowerShell scripts directly, but keep this for backwards compatibility
 function handleCommandLineArgs() {
   const fs = require('fs');
   const { exec } = require('child_process');
@@ -384,6 +405,7 @@ app.on('before-quit', () => {
 });
 
 // Handle second instance
+// Note: Context menu now uses PowerShell scripts directly, but keep this for backwards compatibility
 app.on('second-instance', (event, commandLine, workingDirectory) => {
   const fs = require('fs');
   const { exec } = require('child_process');

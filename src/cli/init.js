@@ -12,6 +12,21 @@ const logger = new Logger('init');
  * Initialize a project for AutoClaude
  */
 function initProject(projectPath, options = {}) {
+  if (!projectPath || typeof projectPath !== 'string') {
+    throw new Error(`Invalid projectPath: ${projectPath}`);
+  }
+
+  // Normalize the path
+  projectPath = path.resolve(projectPath);
+
+  if (!fs.existsSync(projectPath)) {
+    throw new Error(`Project path does not exist: ${projectPath}`);
+  }
+
+  if (!fs.statSync(projectPath).isDirectory()) {
+    throw new Error(`Project path is not a directory: ${projectPath}`);
+  }
+
   const collabDir = getCollabDir(projectPath);
   const configDir = getConfigDir(projectPath);
 

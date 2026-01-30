@@ -26,3 +26,17 @@ test-project/
 
 # Electron Builder cache
 .cache/
+
+# Certificates (sensitive)
+*.pem
+*.cer
+*.pfx
+*.p12
+
+# Debug/temp scripts
+build-debug.ps1
+build-now.ps1
+nul
+
+# Local test files
+scripts/test-*.js
