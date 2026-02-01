@@ -2,8 +2,9 @@
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/AcePeak?style=flat-square&logo=github&label=Sponsors)](https://github.com/sponsors/AcePeak)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/npm/v/autoclaude.svg?style=flat-square)](https://www.npmjs.com/package/autoclaude)
 
-**AutoClaude** is a Windows tool that enables multi-AI agent collaboration through a file-based task system, supporting 24/7 continuous development with automatic quality control.
+**AutoClaude** is a cross-platform tool that enables multi-AI agent collaboration through a file-based task system, supporting 24/7 continuous development with automatic quality control.
 
 ## What is AutoClaude?
 
@@ -11,11 +12,11 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  You: "This is a continuous task: build a login system"        │
+│  You: Write requirements in collaboration/inbox.md             │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  Claude recognizes keyword → Creates task file in queue/        │
+│  Supervisor: Analyzes requirements → Creates task files        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -23,10 +24,8 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  Supervisor: Reviews critically → Requests improvements         │
+│  Supervisor: Reviews critically → Approves or requests changes │
 └─────────────────────────────────────────────────────────────────┘
-                              ↓
-                    (Iterate 2-3 times)
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  Final: High-quality, tested, well-structured code              │
@@ -35,350 +34,315 @@ AutoClaude creates a collaboration system where multiple AI agents work together
 
 ## Key Features
 
-### 🚀 Easy to Start
-- **Right-click integration**: Initialize any folder as an AutoClaude project
-- **Natural language**: Just say "continuous task" in Claude to create tasks
-- **System tray**: Manage all projects from one place
+### 🌍 Cross-Platform
+- **Windows, macOS, Linux**: Native support for all platforms
+- **Node.js powered**: No PowerShell or shell script dependencies
+- **npm installable**: Global CLI tool available anywhere
 
-### 🔄 Iterative Quality Control
-- **Critical Supervisor**: Reviews from multiple user perspectives (perfectionist, beginner, security auditor, etc.)
-- **Customizable iterations**: Choose 1 (quick), 3 (default), or infinite refinement
-- **Stop anytime**: Approve tasks via tray menu when satisfied
+### 🚀 Easy to Start
+```bash
+# Install globally
+npm install -g autoclaude
+
+# Initialize any project
+cd your-project
+autoclaude init
+
+# Start the watcher
+autoclaude start
+```
+
+### 🔄 Intelligent Agent System
+- **Supervisor**: Breaks down requirements into actionable tasks
+- **Executor**: Implements tasks with testing and documentation
+- **Watcher**: Monitors files and coordinates agent interactions
+- **Quality Control**: Multiple review cycles ensure high-quality output
+
+### 📋 Simple Task Management
+```bash
+# Create a task from command line
+autoclaude task "Build a user authentication system"
+
+# Check project status
+autoclaude status
+
+# View dashboard
+autoclaude dashboard
+```
 
 ### 🧪 Automatic Testing
-- **Self-testing**: Executor writes tests for every change
-- **Cumulative tests**: Test suite grows with your project
-- **Project-aware**: Different testing for software, business, or documentation projects
+- **Self-testing**: Executors write tests for every implementation
+- **Continuous validation**: Test suite runs automatically
+- **Coverage tracking**: Monitors test coverage and quality
 
-### 🏗️ Architecture Evolution
-- **Light refactoring**: Every 5 tasks - clean up code, improve naming
-- **Heavy refactoring**: Every 15 tasks - reassess architecture, apply design patterns
-- **First principles**: Regular checks to ensure code matches requirements
+## Installation
 
-### 📊 Visual Dashboard
-- **Real-time overview**: HTML dashboard showing all tasks at a glance
-- **Task history**: View pending, executing, and completed tasks
-- **Quick actions**: View task details, logs, and executor info
-- **Auto-refresh**: Dashboard updates every 30 seconds
+### Global Installation (Recommended)
+```bash
+npm install -g autoclaude
+```
 
-### 🛡️ Reliability
-- **Crash recovery**: If executor dies, another picks up the task
-- **Per-task logs**: Full execution history for every task
-- **No token waste**: Watcher only triggers AI when changes detected
+### Local Installation
+```bash
+npm install autoclaude
+npx autoclaude init
+```
+
+### From Source
+```bash
+git clone https://github.com/AcePeak/AutoClaude.git
+cd AutoClaude
+npm install
+npm link  # Makes `autoclaude` available globally
+```
 
 ## Quick Start
 
-### Installation
-
-**One-line install** (PowerShell):
-
-```powershell
-irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1 | iex
+### 1. Initialize a Project
+```bash
+cd your-project
+autoclaude init
 ```
 
-That's it! The installer will:
-- Download the latest build
-- Install to `%LOCALAPPDATA%\Programs\AutoClaude`
-- Register right-click context menus
-- Create Start Menu shortcut
-- Optionally add to startup
+This creates:
+- `collaboration/` directory with task management structure
+- `collaboration/inbox.md` for writing requirements
+- Configuration files and templates
 
-**Uninstall:**
+### 2. Write Requirements
+Edit `collaboration/inbox.md` and describe what you want built:
+```markdown
+# Requirements
 
-```powershell
-irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/uninstall.ps1 | iex
+Build a todo application with the following features:
+- Add, edit, and delete tasks
+- Mark tasks as complete
+- Filter by status (all, active, completed)
+- Persist data to localStorage
 ```
 
-<details>
-<summary>Advanced Installation Options</summary>
-
-```powershell
-# Silent install (no prompts, add to startup)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1))) -NoPrompt -StartOnLogin
-
-# Install without starting
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/install.ps1))) -NoStart
-
-# Silent uninstall, keep config
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AcePeak/AutoClaude/main/uninstall.ps1))) -NoPrompt -KeepConfig
+### 3. Start AutoClaude
+```bash
+autoclaude start
 ```
 
-</details>
+The watcher will:
+1. Detect new requirements in inbox.md
+2. Trigger the Supervisor to create task files
+3. Executors will implement each task
+4. Supervisor will review and approve completed work
 
-### Initialize a Project
+## Commands
 
-1. **Right-click** in any folder
-2. Select **"Initialize AutoClaude Project"**
-3. A `collaboration/` folder will be created with all necessary files
-
-### Create Your First Task
-
-1. **Right-click** in the initialized folder
-2. Select **"Open Claude"**
-3. Tell Claude:
-   ```
-   This is a continuous task: Create a hello world web page
-   ```
-4. Claude will ask about iteration count:
-   - Enter `3` for standard (recommended for first try)
-   - Enter `0` for infinite refinement
-   - Enter `1` for quick mode
-5. Watch the magic happen! Check progress in the tray menu.
-
-## How It Works
-
-### Task Lifecycle
-
-```
-PENDING → EXECUTING → REVIEW → APPROVED
-    ↑                    │
-    └── REJECTED ←───────┘
-        (iterate)
+### Project Management
+```bash
+autoclaude init [directory]    # Initialize a project
+autoclaude start [directory]   # Start the watcher
+autoclaude stop                # Stop the watcher daemon
+autoclaude status [directory]  # Show project status
 ```
 
-1. **PENDING**: Task waiting in queue
-2. **EXECUTING**: Executor working on it
-3. **REVIEW**: Waiting for Supervisor review
-4. **REJECTED**: Needs improvements, back to queue
-5. **APPROVED**: Done, moved to completed/
+### Task Management
+```bash
+autoclaude task "description"  # Create a new task
+autoclaude dashboard           # Open project dashboard
+autoclaude projects            # List all registered projects
+```
 
-### Directory Structure
+### Development
+```bash
+autoclaude watch --once       # Run one check cycle
+npm test                      # Run tests
+npm run test:coverage         # Run tests with coverage
+```
+
+## Project Structure
 
 After initialization, your project will have:
 
 ```
 your-project/
-├── CLAUDE.md                    # Rules for recognizing continuous tasks
-└── collaboration/
-    ├── queue/                   # Pending tasks
-    ├── executing/               # Tasks being worked on
-    ├── completed/               # Finished tasks
-    ├── inbox.md                 # Write requirements here
-    ├── project_plan.md          # Project overview
-    ├── dashboard.html           # Visual task dashboard
-    ├── SUPERVISOR_GUIDE.md      # How Supervisor reviews
-    ├── EXECUTOR_GUIDE.md        # How Executor works
-    └── .autoclaude/
-        ├── config.json          # Project settings
-        ├── metrics.md           # Iteration tracking
-        ├── logs/                # Execution logs
-        │   └── tasks/           # Per-task logs
-        └── tests/               # Test registry
-            └── test_registry.md # All tests index
-```
-
-### Iteration Control
-
-| Setting | Behavior |
-|---------|----------|
-| `max_iterations: 0` | Infinite - keeps improving until you manually approve |
-| `max_iterations: 1` | Quick - approve if basics work |
-| `max_iterations: 3` | Default - 2-3 rounds of refinement |
-| `max_iterations: 5+` | Thorough - multiple polish rounds |
-
-#### Stopping Infinite Iterations
-
-From the **tray menu**:
-1. Click on your project
-2. Go to **Manage Tasks**
-3. Find your task
-4. Choose:
-   - **Stop After Current Review**: Approve on next review
-   - **Approve Now**: Immediately complete
-
-## Tray Menu Guide
-
-```
-AutoClaude (right-click)
-├── [Project Name] (Queue:2 Exec:1)
-│   ├── Open Directory          # Open in Explorer
-│   ├── Open Claude             # Start Claude CLI here
-│   ├── Open Dashboard          # View task dashboard in browser
-│   ├── Manage Tasks            # View/control active tasks
-│   │   └── task_xxx [STATUS] (iter: N/M)
-│   │       ├── View Task File
-│   │       ├── View Task Log
-│   │       ├── Stop After Current Review
-│   │       └── Approve Now
-│   ├── Pause Monitoring        # Temporarily disable
-│   └── Remove Project          # Unregister project
-├── Start/Stop Monitoring       # Control watcher
-├── View Logs                   # Access all logs
-│   ├── Tray Application Log
-│   └── [Project] Logs
-│       ├── Open Logs Folder
-│       ├── View Task Logs
-│       ├── Today's Executor Log
-│       └── Today's Supervisor Log
-└── Exit
+├── collaboration/
+│   ├── inbox.md              # Write requirements here
+│   ├── queue/                # Tasks waiting to be executed
+│   ├── executing/            # Tasks currently being worked on
+│   ├── completed/            # Finished tasks
+│   ├── SUPERVISOR_GUIDE.md   # Instructions for the Supervisor
+│   ├── EXECUTOR_GUIDE.md     # Instructions for Executors
+│   └── .autoclaude/
+│       ├── config.json       # Project configuration
+│       ├── logs/             # Execution logs
+│       └── lock/             # Process lock files
+├── src/                      # Your source code
+└── tests/                    # Generated tests
 ```
 
 ## Configuration
 
+### Project Configuration
 Edit `collaboration/.autoclaude/config.json`:
-
 ```json
 {
-  "check_interval_seconds": 60,    // How often to check for changes
-  "max_executors": 5,              // Max parallel executors
-  "task_timeout_minutes": 30,      // Task timeout
-  "supervisor": {
-    "max_iterations": 3,           // Default max iterations
-    "review_strictness": "high"    // How critical supervisor is
-  }
+  "name": "My Project",
+  "max_executors": 2,
+  "check_interval_seconds": 60,
+  "claude_path": "claude"
 }
 ```
 
-## Trigger Keywords
+### Global Settings
+AutoClaude stores global settings in your OS-appropriate config directory:
+- **Windows**: `%APPDATA%\\AutoClaude\\settings.json`
+- **macOS**: `~/Library/Application Support/AutoClaude/settings.json`
+- **Linux**: `~/.config/autoclaude/settings.json`
 
-Say these in Claude to create a continuous task:
+## How It Works
 
-**English:**
-- "continuous task", "background task", "async task"
-- "let supervisor handle", "add to queue"
+### File-Based Communication
+AutoClaude uses a file-based system for agent communication:
 
-**Chinese:**
-- "不间断任务", "持续任务", "后台任务"
-- "让supervisor处理", "加入队列"
+1. **Requirements** → `collaboration/inbox.md`
+2. **Task Queue** → `collaboration/queue/*.md`
+3. **In Progress** → `collaboration/executing/*.md`
+4. **Completed** → `collaboration/completed/*.md`
+
+### Agent Roles
+
+#### Watcher
+- Monitors file changes
+- Triggers Supervisor when inbox has content
+- Triggers Executors when queue has tasks
+- Manages orphaned tasks and cleanup
+
+#### Supervisor
+- Analyzes requirements in inbox.md
+- Breaks down complex requirements into specific tasks
+- Reviews completed work for quality
+- Decides approval/rejection with feedback
+
+#### Executor
+- Claims tasks from the queue
+- Implements features with proper testing
+- Submits completed work for review
+- Handles task recovery and resumption
 
 ## Advanced Usage
 
-### Alternative: Using inbox.md
+### Multiple Projects
+```bash
+# List all registered projects
+autoclaude projects
 
-Instead of talking to Claude, you can write directly to `collaboration/inbox.md`:
-
-```markdown
-# Requirements Inbox
-
----
-
-Please create a REST API with the following endpoints:
-- GET /users - list all users
-- POST /users - create a user
-- GET /users/:id - get user by id
-
-Use Express.js and include proper error handling.
+# Work with specific project
+autoclaude status /path/to/project
+autoclaude start /path/to/project
 ```
 
-The Supervisor will automatically convert this to task files.
-
-### Viewing Logs
-
-**Command line:**
-```powershell
-# View all logs overview
-.\scripts\view-logs.ps1 -ProjectPath "C:\MyProject"
-
-# View specific task log
-.\scripts\view-logs.ps1 -ProjectPath "C:\MyProject" -TaskId task_xxx
-
-# Follow log in real-time
-.\scripts\view-logs.ps1 -ProjectPath "C:\MyProject" -TaskId task_xxx -Follow
+### Custom Task Templates
+You can customize task templates by modifying the Supervisor guide:
+```bash
+vim collaboration/SUPERVISOR_GUIDE.md
+vim collaboration/EXECUTOR_GUIDE.md
 ```
 
-**From tray:**
-- Right-click → View Logs → [Project] Logs
+### Daemon Mode
+```bash
+# Start as background daemon
+autoclaude start --daemon
 
-### Viewing Dashboard
-
-The dashboard provides a visual overview of all tasks:
-
-**Access methods:**
-1. **Right-click menu**: In any initialized folder, right-click → "View AutoClaude Dashboard"
-2. **Tray menu**: Right-click tray → [Project Name] → Open Dashboard
-3. **Direct**: Open `collaboration/dashboard.html` in your browser
-
-**Dashboard features:**
-- Task counts by status (pending, executing, completed)
-- Detailed task cards with status, iteration progress, and description
-- Click any task to view full task content
-- Executor PID display for executing tasks
-- Auto-refresh every 30 seconds
-
-### Manual Testing
-
-```powershell
-# Run watcher once (no loop)
-.\scripts\watcher.ps1 -ProjectPath "C:\MyProject" -Once
-
-# Manually trigger supervisor
-.\scripts\supervisor.ps1 -ProjectPath "C:\MyProject"
-
-# Manually trigger executor
-.\scripts\executor.ps1 -ProjectPath "C:\MyProject"
+# Check if running
+ps aux | grep autoclaude
 ```
 
-## Requirements
+## Testing
 
-- Windows 10/11
-- [Claude CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code) installed
-- PowerShell 5.1+
+AutoClaude includes a comprehensive test suite:
 
-## Building from Source
+```bash
+# Run all tests
+npm test
 
-```powershell
-# Clone
-git clone https://github.com/AcePeak/AutoClaude.git
-cd AutoClaude
+# Run with coverage
+npm run test:coverage
 
-# Install dependencies
-npm install
+# Run specific tests
+npm test -- tests/core/watcher.test.js
 
-# Build portable zip
-npm run build:portable
+# Watch mode during development
+npm run test:watch
 ```
-
-The build output will be at `dist-electron/win-unpacked/` and `dist-electron/AutoClaude-x.x.x-win-portable.zip`
 
 ## Development
 
-```powershell
-# Run in development mode
-npm run dev
+### Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Write tests for your changes
+4. Ensure all tests pass
+5. Submit a pull request
 
-# Build unpacked app
-npm run build:dir
-
-# Build portable zip
-npm run build:portable
+### Building
+```bash
+git clone https://github.com/AcePeak/AutoClaude.git
+cd AutoClaude
+npm install
+npm test
 ```
 
-## Release Process
-
-Releases are automated via GitHub Actions:
-
-1. Update version in `package.json`
-2. Commit and push to `main` branch
-3. GitHub Actions automatically builds and deploys to `artifacts` branch
-4. Users get the latest version via the install script
+### Architecture
+- **src/core/**: Core agent implementations (Watcher, Supervisor, Executor)
+- **src/cli/**: Command-line interface
+- **src/utils/**: Utility functions and helpers
+- **tests/**: Comprehensive test suite
 
 ## Troubleshooting
 
-### Tray icon doesn't appear
-- Check if `wscript.exe` is allowed by your antivirus
-- Try running `tray\start-hidden.vbs` manually
+### Common Issues
 
-### Tasks not being picked up
-- Ensure watcher is running (check tray menu)
-- Check `collaboration/.autoclaude/logs/` for errors
-- Verify Claude CLI is installed: `claude --version`
+#### "Claude not found"
+Ensure the Claude CLI is installed and available in your PATH:
+```bash
+which claude  # Should return a path
+claude --version  # Should show version
+```
 
-### Task stuck in EXECUTING
-- The executor may have crashed
-- Watcher will detect orphaned tasks and restart them automatically
-- Or manually restart via tray: Manage Tasks → Approve Now
+#### Permission Denied
+On Unix systems, ensure the CLI script is executable:
+```bash
+chmod +x node_modules/.bin/autoclaude
+```
 
-## Support the Project
+#### Tasks Stuck
+Check for orphaned lock files:
+```bash
+autoclaude status  # Shows current task states
+```
 
-If you find AutoClaude useful, consider supporting its development:
+### Logs
+Check execution logs for detailed information:
+```bash
+ls collaboration/.autoclaude/logs/
+tail -f collaboration/.autoclaude/logs/supervisor_*.log
+```
 
-[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/AcePeak)
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-blue?style=for-the-badge&logo=paypal)](https://paypal.me/AceLiatus)
+## Migration from v2.x
+
+AutoClaude v3.x is fully cross-platform and doesn't require PowerShell. Existing Windows projects should continue working, but for best compatibility:
+
+1. Install via npm: `npm install -g autoclaude`
+2. Use `autoclaude start` instead of PowerShell scripts
+3. Update any custom scripts to use Node.js instead of PowerShell
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
+## Support
+
+- 🐛 [Issues](https://github.com/AcePeak/AutoClaude/issues)
+- 💡 [Discussions](https://github.com/AcePeak/AutoClaude/discussions)
+- 💖 [Sponsor](https://github.com/sponsors/AcePeak)
+
 ---
 
-**AutoClaude** - Let AI agents handle the heavy lifting while you focus on what matters.
+**AutoClaude**: Where AI agents collaborate to build software, so you don't have to.

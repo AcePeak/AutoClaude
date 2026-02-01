@@ -18,7 +18,10 @@
     "build:all": "electron-builder --win --mac --linux",
     "watcher": "node src/core/watcher.js",
     "init": "node src/cli/init.js",
-    "cli": "node src/cli/index.js"
+    "cli": "node src/cli/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "author": {
     "name": "AcePeak",
@@ -38,7 +41,8 @@
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "jest": "^30.2.0"
   },
   "build": {
     "appId": "com.acepeak.autoclaude",
@@ -66,15 +70,23 @@
       }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "assets/icon.ico"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.developer-tools"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "assets/icon.png",
       "category": "Development"
     },

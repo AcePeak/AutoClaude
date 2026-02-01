@@ -100,6 +100,107 @@ program
     }
   });
 
+// Start command (daemon mode)
+program
+  .command('start [directory]')
+  .description('Start the watcher daemon')
+  .option('-d, --daemon', 'Run as daemon in background')
+  .action((directory, options) => {
+    const projectPath = directory ? path.resolve(directory) : process.cwd();
+    const { getCollabDir } = require('../utils/paths');
+    const collabDir = getCollabDir(projectPath);
+
+    if (!fs.existsSync(collabDir)) {
+      console.error('Project not initialized. Run: autoclaude init');
+      process.exit(1);
+    }
+
+    const Watcher = require('../core/watcher');
+    const watcher = new Watcher();
+
+    if (options.daemon) {
+      const { spawn } = require('child_process');
+      const child = spawn(process.argv[0], [
+        path.resolve(__dirname, '../../src/cli/index.js'),
+        'start',
+        projectPath
+      ], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+      console.log(`AutoClaude watcher started as daemon (PID: ${child.pid})`);
+    } else {
+      watcher.start();
+      console.log('AutoClaude watcher started. Press Ctrl+C to stop.');
+
+      process.on('SIGINT', () => {
+        watcher.stop();
+        console.log('\nWatcher stopped.');
+        process.exit(0);
+      });
+    }
+  });
+
+// Stop command
+program
+  .command('stop')
+  .description('Stop the watcher daemon')
+  .action(() => {
+    console.log('Stop command not yet implemented.');
+    // TODO: Implement daemon PID tracking and killing
+  });
+
+// Task command
+program
+  .command('task <description>')
+  .description('Create a new task')
+  .option('-p, --priority <priority>', 'Task priority (low|normal|high)', 'normal')
+  .action((description, options) => {
+    const projectPath = process.cwd();
+    const { getCollabDir } = require('../utils/paths');
+    const collabDir = getCollabDir(projectPath);
+
+    if (!fs.existsSync(collabDir)) {
+      console.error('Project not initialized. Run: autoclaude init');
+      process.exit(1);
+    }
+
+    const queueDir = path.join(collabDir, 'queue');
+    if (!fs.existsSync(queueDir)) {
+      fs.mkdirSync(queueDir, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const shortDesc = description.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase().slice(0, 30);
+    const filename = `task_${timestamp}_${shortDesc}.md`;
+    const taskPath = path.join(queueDir, filename);
+
+    const taskId = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const taskContent = `---
+id: ${taskId}
+status: PENDING
+priority: ${options.priority}
+created: ${new Date().toISOString()}
+source: cli
+---
+## Task Description
+${description}
+
+## Acceptance Criteria
+- Task completion requirements to be defined
+- Verify functionality works as expected
+- Code follows project standards
+
+## Notes
+Task created via CLI command.
+`;
+
+    fs.writeFileSync(taskPath, taskContent, 'utf8');
+    console.log(`Task created: ${filename}`);
+    console.log(`Task ID: ${taskId}`);
+  });
+
 // Dashboard command
 program
   .command('dashboard [directory]')
