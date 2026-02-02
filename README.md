@@ -6,6 +6,28 @@
 
 **AutoClaude** is a cross-platform tool that enables multi-AI agent collaboration through a file-based task system, supporting 24/7 continuous development with automatic quality control.
 
+## 🎉 v3.0 Changes
+
+**v3.0.0-beta.1** introduces major improvements to unify all entry points:
+
+### ✨ What's New
+- **Unified Node.js Actions**: Right-click context menus now use Node.js scripts instead of PowerShell
+- **Cross-Platform Context Menus**: Better support for Windows, with preparations for macOS/Linux
+- **Enhanced CLI**: New `autoclaude context-menu install/uninstall` commands
+- **Proper Daemon Management**: `autoclaude stop` now works with PID file tracking
+- **Better Error Handling**: System notifications for all actions
+
+### 🔧 Breaking Changes
+- Right-click menus now call Node.js scripts in `src/actions/`
+- PowerShell scripts moved to legacy reference in `scripts/`
+- Context menu registration improved with better Node.js path detection
+
+### 🚀 Migration Guide
+If upgrading from v2.x:
+1. Uninstall old context menus: `autoclaude context-menu uninstall`
+2. Reinstall: `autoclaude context-menu install`
+3. All functionality remains the same, just more reliable!
+
 ## What is AutoClaude?
 
 AutoClaude creates a collaboration system where multiple AI agents work together:

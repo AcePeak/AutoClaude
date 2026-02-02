@@ -187,7 +187,15 @@ Write-Step "Registering context menus..."
 
 $exePath = "$InstallDir\AutoClaude.exe"
 $iconPath = "$InstallDir\resources\assets\icon.ico"
-$scriptsPath = "$InstallDir\resources\scripts"
+$actionsPath = "$InstallDir\resources\src\actions"
+
+# Find Node.js executable
+$nodePath = "node"
+try {
+    $nodePath = (Get-Command node -ErrorAction Stop).Source
+} catch {
+    Write-Warn "Node.js not found in PATH, using 'node' command"
+}
 
 # Helper to add context menu
 function Add-ContextMenu {
@@ -199,7 +207,7 @@ function Add-ContextMenu {
     )
     $bgKey = "HKCU\Software\Classes\Directory\Background\shell\$Name"
     $dirKey = "HKCU\Software\Classes\Directory\shell\$Name"
-    $cmd = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Script`" -Path `"$PathVar`""
+    $cmd = "`"$nodePath`" `"$Script`" --path `"$PathVar`""
 
     # Background (right-click in folder)
     reg add $bgKey /ve /d $Label /f 2>$null | Out-Null
@@ -213,9 +221,9 @@ function Add-ContextMenu {
     reg add "$dirKey\command" /ve /d $cmd2 /f 2>$null | Out-Null
 }
 
-Add-ContextMenu "AutoClaudeInit" "Initialize AutoClaude Project" "$scriptsPath\init-project.ps1" "%V"
-Add-ContextMenu "AutoClaudeOpen" "Open Claude" "$scriptsPath\open-claude.ps1" "%V"
-Add-ContextMenu "AutoClaudeDashboard" "View AutoClaude Dashboard" "$scriptsPath\view-dashboard.ps1" "%V"
+Add-ContextMenu "AutoClaudeInit" "Initialize AutoClaude Project" "$actionsPath\init-project.js" "%V"
+Add-ContextMenu "AutoClaudeOpen" "Open Claude" "$actionsPath\open-claude.js" "%V"
+Add-ContextMenu "AutoClaudeDashboard" "View AutoClaude Dashboard" "$actionsPath\view-dashboard.js" "%V"
 
 Write-Ok "Context menus registered"
 

@@ -119,17 +119,16 @@ program
     const watcher = new Watcher();
 
     if (options.daemon) {
-      const { spawn } = require('child_process');
-      const child = spawn(process.argv[0], [
-        path.resolve(__dirname, '../../src/cli/index.js'),
-        'start',
-        projectPath
-      ], {
-        detached: true,
-        stdio: 'ignore'
-      });
-      child.unref();
-      console.log(`AutoClaude watcher started as daemon (PID: ${child.pid})`);
+      const { startDaemon } = require('../utils/daemon');
+      
+      try {
+        const result = startDaemon(projectPath);
+        console.log(`AutoClaude watcher started as daemon (PID: ${result.pid})`);
+        console.log(`Project: ${projectPath}`);
+      } catch (error) {
+        console.error(`Failed to start daemon: ${error.message}`);
+        process.exit(1);
+      }
     } else {
       watcher.start();
       console.log('AutoClaude watcher started. Press Ctrl+C to stop.');
@@ -147,8 +146,19 @@ program
   .command('stop')
   .description('Stop the watcher daemon')
   .action(() => {
-    console.log('Stop command not yet implemented.');
-    // TODO: Implement daemon PID tracking and killing
+    const { stopDaemon } = require('../utils/daemon');
+    
+    try {
+      const result = stopDaemon();
+      if (result.success) {
+        console.log(`AutoClaude daemon stopped (PID: ${result.pid})`);
+      } else {
+        console.log('No AutoClaude daemon found running');
+      }
+    } catch (error) {
+      console.error(`Failed to stop daemon: ${error.message}`);
+      process.exit(1);
+    }
   });
 
 // Task command
@@ -256,5 +266,65 @@ program
       console.log(`    Last activity: ${project.last_activity || 'Never'}`);
     }
   });
+
+// Context menu command
+program
+  .command('context-menu')
+  .description('Manage Windows context menu integration')
+  .addCommand(
+    program.createCommand('install')
+      .description('Install context menu entries (Windows only)')
+      .action(() => {
+        if (process.platform !== 'win32') {
+          console.error('Context menu integration is only available on Windows');
+          process.exit(1);
+        }
+
+        const { registerContextMenu } = require('../utils/context-menu');
+        
+        try {
+          const result = registerContextMenu();
+          if (result.success) {
+            console.log('✓ Context menu entries installed successfully');
+            console.log('');
+            console.log('You can now right-click on any folder and use:');
+            console.log('  • Initialize AutoClaude Project');
+            console.log('  • Open Claude');
+            console.log('  • View AutoClaude Dashboard');
+          } else {
+            console.error(`Failed to install context menu: ${result.message}`);
+            process.exit(1);
+          }
+        } catch (error) {
+          console.error(`Error installing context menu: ${error.message}`);
+          process.exit(1);
+        }
+      })
+  )
+  .addCommand(
+    program.createCommand('uninstall')
+      .description('Remove context menu entries (Windows only)')
+      .action(() => {
+        if (process.platform !== 'win32') {
+          console.error('Context menu integration is only available on Windows');
+          process.exit(1);
+        }
+
+        const { unregisterContextMenu } = require('../utils/context-menu');
+        
+        try {
+          const result = unregisterContextMenu();
+          if (result.success) {
+            console.log('✓ Context menu entries removed successfully');
+          } else {
+            console.error(`Failed to remove context menu: ${result.message}`);
+            process.exit(1);
+          }
+        } catch (error) {
+          console.error(`Error removing context menu: ${error.message}`);
+          process.exit(1);
+        }
+      })
+  );
 
 program.parse();

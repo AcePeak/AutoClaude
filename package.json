@@ -1,6 +1,6 @@
 {
   "name": "autoclaude",
-  "version": "2.3.0",
+  "version": "3.0.0-beta.1",
   "description": "Multi-AI agent collaboration tool for continuous development",
   "main": "src/main.js",
   "bin": {
