@@ -90,70 +90,22 @@ describe('context-menu utils', () => {
     });
   });
 
-  // ── macOS ──
+  // ── Non-Windows (macOS, Linux) ──
 
-  describe('registerContextMenu (macOS)', () => {
-    test('should install Quick Actions', () => {
+  describe('non-Windows platforms', () => {
+    test('should return not supported on macOS', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin' });
 
-      mockExecSync.mockReturnValueOnce('/usr/local/bin/node\n').mockReturnValue('');
-      mockFs.existsSync.mockImplementation((p) => {
-        if (p.includes('.workflow')) return false; // workflow doesn't exist yet
-        return true; // package.json etc. exist
-      });
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ name: 'autoclaude' }));
+      const reg = registerContextMenu();
+      expect(reg.success).toBe(false);
+      expect(reg.message).toContain('only supported on Windows');
 
-      const result = registerContextMenu();
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('Installed 3 Quick Actions');
-      // 3 Contents dirs (Services dir already exists in this mock)
-      expect(mockFs.mkdirSync).toHaveBeenCalledTimes(3);
-      expect(mockFs.writeFileSync).toHaveBeenCalledTimes(6); // 3 Info.plist + 3 document.wflow
+      const unreg = unregisterContextMenu();
+      expect(unreg.success).toBe(false);
+      expect(unreg.message).toContain('only supported on Windows');
     });
 
-    test('should overwrite existing workflows', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin' });
-
-      mockExecSync.mockReturnValueOnce('/usr/local/bin/node\n').mockReturnValue('');
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ name: 'autoclaude' }));
-
-      const result = registerContextMenu();
-
-      expect(result.success).toBe(true);
-      // Should have called rmSync to remove existing workflows
-      expect(mockFs.rmSync).toHaveBeenCalledTimes(3);
-    });
-  });
-
-  describe('unregisterContextMenu (macOS)', () => {
-    test('should remove Quick Actions', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin' });
-      mockFs.existsSync.mockReturnValue(true);
-
-      const result = unregisterContextMenu();
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('Removed 3 Quick Action(s)');
-      expect(mockFs.rmSync).toHaveBeenCalledTimes(3);
-    });
-
-    test('should handle no existing workflows', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin' });
-      mockFs.existsSync.mockReturnValue(false);
-
-      const result = unregisterContextMenu();
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('No AutoClaude Quick Actions found');
-    });
-  });
-
-  // ── Linux ──
-
-  describe('unsupported platform', () => {
-    test('should return not supported for Linux', () => {
+    test('should return not supported on Linux', () => {
       Object.defineProperty(process, 'platform', { value: 'linux' });
 
       expect(registerContextMenu().success).toBe(false);
