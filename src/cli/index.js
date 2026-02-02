@@ -270,58 +270,43 @@ program
 // Context menu command
 program
   .command('context-menu')
-  .description('Manage Windows context menu integration')
+  .description('Manage context menu integration (Windows registry / macOS Quick Actions)')
   .addCommand(
     program.createCommand('install')
-      .description('Install context menu entries (Windows only)')
+      .description('Install context menu entries')
       .action(() => {
-        if (process.platform !== 'win32') {
-          console.error('Context menu integration is only available on Windows');
-          process.exit(1);
-        }
-
         const { registerContextMenu } = require('../utils/context-menu');
-        
+
         try {
           const result = registerContextMenu();
           if (result.success) {
-            console.log('✓ Context menu entries installed successfully');
-            console.log('');
-            console.log('You can now right-click on any folder and use:');
-            console.log('  • Initialize AutoClaude Project');
-            console.log('  • Open Claude');
-            console.log('  • View AutoClaude Dashboard');
+            console.log('✓ ' + result.message);
           } else {
-            console.error(`Failed to install context menu: ${result.message}`);
+            console.error(`Failed: ${result.message}`);
             process.exit(1);
           }
         } catch (error) {
-          console.error(`Error installing context menu: ${error.message}`);
+          console.error(`Error: ${error.message}`);
           process.exit(1);
         }
       })
   )
   .addCommand(
     program.createCommand('uninstall')
-      .description('Remove context menu entries (Windows only)')
+      .description('Remove context menu entries')
       .action(() => {
-        if (process.platform !== 'win32') {
-          console.error('Context menu integration is only available on Windows');
-          process.exit(1);
-        }
-
         const { unregisterContextMenu } = require('../utils/context-menu');
-        
+
         try {
           const result = unregisterContextMenu();
           if (result.success) {
-            console.log('✓ Context menu entries removed successfully');
+            console.log('✓ ' + result.message);
           } else {
-            console.error(`Failed to remove context menu: ${result.message}`);
+            console.error(`Failed: ${result.message}`);
             process.exit(1);
           }
         } catch (error) {
-          console.error(`Error removing context menu: ${error.message}`);
+          console.error(`Error: ${error.message}`);
           process.exit(1);
         }
       })
