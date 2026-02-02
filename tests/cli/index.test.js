@@ -16,7 +16,7 @@ describe('CLI', () => {
 
   describe('init command', () => {
     test('should initialize a new project', async () => {
-      const newProjectPath = path.join(global.TEST_TEMP_DIR, 'new-project');
+      const newProjectPath = path.join(require('os').tmpdir(), 'autoclaude-init-' + Date.now());
       fs.mkdirSync(newProjectPath, { recursive: true });
 
       const { stdout } = await execAsync(`node "${cliPath}" init "${newProjectPath}"`);

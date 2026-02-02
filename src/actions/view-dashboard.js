@@ -1,47 +1,36 @@
 #!/usr/bin/env node
 
-const { program } = require('commander');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-
-// Setup command line arguments
-program
-  .option('--path <directory>', 'Directory to view dashboard for')
-  .parse();
-
-const options = program.opts();
-
-// Determine target directory
-let targetPath = options.path;
-if (!targetPath) {
-  console.error('[ERROR] --path argument is required');
-  process.exit(1);
-}
-
-targetPath = path.resolve(targetPath);
 
 // Show system notification function
 function showNotification(title, message, isError = false) {
   try {
     if (process.platform === 'win32') {
-      // Use PowerShell to show Windows toast notification
       const script = `
         Add-Type -AssemblyName System.Windows.Forms
         [System.Windows.Forms.MessageBox]::Show('${message.replace(/'/g, "''")}', '${title}', 'OK', '${isError ? 'Error' : 'Information'}')
       `;
       spawn('powershell', ['-Command', script], { stdio: 'ignore' });
     } else if (process.platform === 'darwin') {
-      // macOS notification
       spawn('osascript', ['-e', `display notification "${message}" with title "${title}"`], { stdio: 'ignore' });
     } else {
-      // Linux notification
       spawn('notify-send', [title, message], { stdio: 'ignore' });
     }
   } catch (error) {
-    // Fallback to console output
     console.log(`[${isError ? 'ERROR' : 'INFO'}] ${title}: ${message}`);
   }
+}
+
+// Parse --path from argv
+function parsePath(argv) {
+  const args = argv || process.argv.slice(2);
+  const idx = args.indexOf('--path');
+  if (idx !== -1 && args[idx + 1]) {
+    return path.resolve(args[idx + 1]);
+  }
+  return null;
 }
 
 // Open file in default browser/application
@@ -71,11 +60,18 @@ function openFile(filePath) {
 }
 
 // Main function
-function main() {
+function main(overridePath) {
+  const targetPath = overridePath || parsePath();
+
+  if (!targetPath) {
+    console.error('[ERROR] --path argument is required');
+    process.exit(1);
+    return;
+  }
+
   try {
     console.log(`[INFO] Viewing AutoClaude dashboard for: ${targetPath}`);
-    
-    // Check if directory exists
+
     if (!fs.existsSync(targetPath)) {
       throw new Error(`Directory does not exist: ${targetPath}`);
     }
@@ -126,4 +122,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { main };
+module.exports = { main, parsePath };

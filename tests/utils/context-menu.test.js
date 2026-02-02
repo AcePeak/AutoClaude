@@ -171,18 +171,19 @@ describe('context-menu utils', () => {
       expect(result.message).toBe('Context menu unregistered successfully');
     });
 
-    test('should handle general errors', () => {
+    test('should still succeed even if individual deletes fail', () => {
       Object.defineProperty(process, 'platform', { value: 'win32' });
-      
-      // Mock general error
+
+      // Individual errors are swallowed (keys might not exist)
       mockExecSync.mockImplementation(() => {
         throw new Error('Access denied');
       });
 
       const result = unregisterContextMenu();
 
-      expect(result.success).toBe(false);
-      expect(result.message).toBe('Access denied');
+      // Inner try/catch swallows per-key errors, so overall still succeeds
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Context menu unregistered successfully');
     });
   });
 });

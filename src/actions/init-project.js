@@ -1,58 +1,52 @@
 #!/usr/bin/env node
 
-const { program } = require('commander');
 const path = require('path');
 const fs = require('fs');
 const { initProjectSync } = require('../cli/init');
 
-// Setup command line arguments
-program
-  .option('--path <directory>', 'Directory to initialize')
-  .parse();
-
-const options = program.opts();
-
-// Determine target directory
-let targetPath = options.path;
-if (!targetPath) {
-  console.error('[ERROR] --path argument is required');
-  process.exit(1);
-}
-
-targetPath = path.resolve(targetPath);
-
 // Show system notification function
 function showNotification(title, message, isError = false) {
   try {
+    const { spawn } = require('child_process');
     if (process.platform === 'win32') {
-      // Use PowerShell to show Windows toast notification
-      const { spawn } = require('child_process');
       const script = `
         Add-Type -AssemblyName System.Windows.Forms
         [System.Windows.Forms.MessageBox]::Show('${message.replace(/'/g, "''")}', '${title}', 'OK', '${isError ? 'Error' : 'Information'}')
       `;
       spawn('powershell', ['-Command', script], { stdio: 'ignore' });
     } else if (process.platform === 'darwin') {
-      // macOS notification
-      const { spawn } = require('child_process');
       spawn('osascript', ['-e', `display notification "${message}" with title "${title}"`], { stdio: 'ignore' });
     } else {
-      // Linux notification
-      const { spawn } = require('child_process');
       spawn('notify-send', [title, message], { stdio: 'ignore' });
     }
   } catch (error) {
-    // Fallback to console output
     console.log(`[${isError ? 'ERROR' : 'INFO'}] ${title}: ${message}`);
   }
 }
 
+// Parse --path from argv
+function parsePath(argv) {
+  const args = argv || process.argv.slice(2);
+  const idx = args.indexOf('--path');
+  if (idx !== -1 && args[idx + 1]) {
+    return path.resolve(args[idx + 1]);
+  }
+  return null;
+}
+
 // Main function
-function main() {
+function main(overridePath) {
+  const targetPath = overridePath || parsePath();
+
+  if (!targetPath) {
+    console.error('[ERROR] --path argument is required');
+    process.exit(1);
+    return;
+  }
+
   try {
     console.log(`[INFO] Initializing AutoClaude project: ${targetPath}`);
-    
-    // Check if directory exists
+
     if (!fs.existsSync(targetPath)) {
       throw new Error(`Directory does not exist: ${targetPath}`);
     }
@@ -73,7 +67,6 @@ function main() {
     const projectName = path.basename(targetPath);
     initProjectSync(targetPath, { name: projectName });
 
-    // Success
     showNotification('AutoClaude', `Project "${projectName}" initialized successfully!`);
     console.log(`[OK] AutoClaude project initialized: ${targetPath}`);
     console.log('');
@@ -89,9 +82,8 @@ function main() {
   }
 }
 
-// Execute if run directly
 if (require.main === module) {
   main();
 }
 
-module.exports = { main };
+module.exports = { main, parsePath };

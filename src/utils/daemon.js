@@ -34,8 +34,9 @@ function startDaemon(projectPath) {
   // Check if daemon is already running
   if (fs.existsSync(pidFile)) {
     try {
-      const existingPid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
-      if (isProcessRunning(existingPid)) {
+      const pidData = JSON.parse(fs.readFileSync(pidFile, 'utf8'));
+      const existingPid = pidData.pid;
+      if (existingPid && isProcessRunning(existingPid)) {
         throw new Error(`AutoClaude daemon already running (PID: ${existingPid})`);
       } else {
         // Clean up stale PID file
@@ -45,7 +46,8 @@ function startDaemon(projectPath) {
       if (error.message.includes('already running')) {
         throw error;
       }
-      // Ignore other errors and continue
+      // Ignore other errors (corrupt PID file, etc.) and continue
+      try { fs.unlinkSync(pidFile); } catch (e) {}
     }
   }
   
